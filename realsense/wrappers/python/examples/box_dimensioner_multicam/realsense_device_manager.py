@@ -198,8 +198,11 @@ class DeviceManager:
 
         """
         import os
+        print("\n")
         print(os.getcwd())
-        os.chdir('./librealsense/wrappers/python/examples/box_dimensioner_multicam')
+        print("\n")
+        os.chdir('./wrappers/python/examples/box_dimensioner_multicam')
+        print(os.getcwd())
         with open(path_to_settings_file, 'r') as file:
         	json_text = file.read().strip()
 

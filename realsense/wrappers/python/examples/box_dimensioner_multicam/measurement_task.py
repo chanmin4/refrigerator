@@ -59,6 +59,7 @@ def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, ro
 
 		# Filter the point cloud based on the depth of the object
 		# The object placed has its height in the negative direction of z-axis due to the right-hand coordinate system
+		#체스판 안에있는 pointcloud 정보넣기
 		point_cloud = get_clipped_pointcloud(point_cloud, roi_2d)
 		point_cloud = point_cloud[:,point_cloud[2,:]<-depth_threshold]
 		point_cloud_cumulative = np.column_stack( ( point_cloud_cumulative, point_cloud ) )
@@ -116,7 +117,10 @@ def calculate_boundingbox_points(point_cloud, calibration_info_devices, depth_th
 	if point_cloud.shape[1] > 500:
 		# Get the bounding box in 2D using the X and Y coordinates
 		coord = np.c_[point_cloud[0,:], point_cloud[1,:]].astype('float32')
+		#coord 컨벡스헐에 외접하면서 면적 가장작은 직사각형구하기
+		#현재 문제인부분 (1) 두물체가있으면 넓게 잡아버림 컨벡스헐 구분해야됨
 		min_area_rectangle = cv2.minAreaRect(coord)
+		#위에 구한 직사각형 마주보는 꼭짓점 좌표
 		bounding_box_world_2d = cv2.boxPoints(min_area_rectangle)
 		# Caculate the height of the pointcloud
 		height = max(point_cloud[2,:]) - min(point_cloud[2,:]) + depth_threshold
