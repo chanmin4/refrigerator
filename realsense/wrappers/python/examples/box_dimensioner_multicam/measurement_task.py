@@ -123,6 +123,7 @@ def calculate_boundingbox_points(point_cloud, calibration_info_devices, depth_th
 		#위에 구한 직사각형 마주보는 꼭짓점 좌표
 		bounding_box_world_2d = cv2.boxPoints(min_area_rectangle)
 		# Caculate the height of the pointcloud
+		#수정필요
 		height = max(point_cloud[2,:]) - min(point_cloud[2,:]) + depth_threshold
 
 		# Get the upper and lower bounding box corner points in 3D
