@@ -22,8 +22,8 @@ from collections import defaultdict
 from realsense_device_manager import DeviceManager
 from calibration_kabsch import PoseEstimation
 from helper_functions import get_boundary_corners_2D
-from measurement_task import calculate_boundingbox_points, calculate_cumulative_pointcloud, visualise_measurements
-
+from measurement_task import cluster_pointcloud,calculate_boundingbox_points, calculate_cumulative_pointcloud, visualise_measurements
+from sklearn.cluster import DBSCAN
 def run_demo():
 
 	# Define some constants
@@ -127,9 +127,9 @@ def run_demo():
 
 				# Calculate the pointcloud using the depth frames from all the devices
 				point_cloud = calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2D)
-
+				clusters = cluster_pointcloud(point_cloud)
 				# Get the bounding box for the pointcloud in image coordinates of the color imager
-				bounding_box_points_color_image, length, width, height = calculate_boundingbox_points(point_cloud, calibration_info_devices )
+				bounding_box_points_color_image, length, width, height = calculate_boundingbox_points(clusters, calibration_info_devices)
 				print(length,width,height)
 				# Draw the bounding box points on the color image and visualise the results
 				visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)
