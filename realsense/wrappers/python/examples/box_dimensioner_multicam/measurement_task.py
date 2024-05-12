@@ -11,18 +11,17 @@ from realsense_device_manager import post_process_depth_frame
 from helper_functions import convert_depth_frame_to_pointcloud, get_clipped_pointcloud
 from sklearn.cluster import DBSCAN
 
-def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10):
-	# 입력 데이터가 비어있는지 확인
-	if point_cloud.size == 0 or point_cloud.shape[0] == 0:
-		return []  # 빈 클러스터 리스트 반환
+def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10):  # eps와 min_samples 조정
+    if point_cloud.size == 0 or point_cloud.shape[1] == 0:
+        return []
 
-	db = DBSCAN(eps=eps, min_samples=min_samples).fit(point_cloud.T)
-	labels = db.labels_
-	unique_labels = set(labels)
-	clusters = [point_cloud[:, labels == k] for k in unique_labels if k != -1]  # -1은 잡음을 의미합니다.
-	return clusters
+    # DBSCAN 실행
+    db = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=-1).fit(point_cloud.T)
+    labels = db.labels_
+    unique_labels = set(labels)
+    clusters = [point_cloud[:, labels == k] for k in unique_labels if k != -1]
 
-
+    return clusters
 def calculate_boundingbox_points(clusters, calibration_info_devices, depth_threshold=0.01):
 	# 최종 결과와 각 치수를 저장할 빈 리스트
 	bounding_box_points_color_image = {}
@@ -106,6 +105,7 @@ def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, ro
 
 		point_cloud = calibration_info_devices[device][0].apply_transformation(point_cloud)
 		point_cloud = get_clipped_pointcloud(point_cloud, roi_2d)
+  
 		point_cloud = point_cloud[:, point_cloud[2, :] < -depth_threshold]
 		point_cloud_cumulative = np.column_stack((point_cloud_cumulative, point_cloud))
 	

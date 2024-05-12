@@ -1,8 +1,13 @@
-import pyrealsense2 as rs
+import os
 import numpy as np
-import cv2
 import tensorflow as tf
-
+import cv2
+import pyrealsense2 as rs
+from object_detection.utils import label_map_util
+from object_detection.utils import visualization_utils as vis_util
+from PIL import ImageFont
+font = ImageFont.truetype("arial.ttf", 24)
+print(dir(font))  # 이 명령은 폰트 객체에서 사용할 수 있는 모든 메소드와 속성을 나열합니다.
 # Configure depth and color streams
 pipeline = rs.pipeline()
 config = rs.config()
@@ -12,11 +17,17 @@ print("[INFO] Starting streaming...")
 pipeline.start(config)
 print("[INFO] Camera ready.")
 
-# download model from: https://github.com/opencv/opencv/wiki/TensorFlow-Object-Detection-API#run-network-in-opencv
-print("[INFO] Loading model...")
-PATH_TO_CKPT = "frozen_inference_graph.pb"
+# Model and label paths
+PATH_TO_CKPT = 'c:\\Users\\Jong Min Lee\\OneDrive\\Desktop\\github\\refrigerator\\realsense\\frozen_inference_graph.pb'
+PATH_TO_LABELS = 'c:\\Users\\Jong Min Lee\\OneDrive\\Desktop\\github\\refrigerator\\realsense\\mscoco_label_map.pbtxt'
+NUM_CLASSES = 90
 
-# Load the Tensorflow model into memory.
+# Load the label map
+label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
+categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
+category_index = label_map_util.create_category_index(categories)
+
+# Load the Tensorflow model into memory
 detection_graph = tf.Graph()
 with detection_graph.as_default():
     od_graph_def = tf.compat.v1.GraphDef()
@@ -26,61 +37,41 @@ with detection_graph.as_default():
         tf.compat.v1.import_graph_def(od_graph_def, name='')
     sess = tf.compat.v1.Session(graph=detection_graph)
 
-# Input tensor is the image
+# Detection
 image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-# Output tensors are the detection boxes, scores, and classes
-# Each box represents a part of the image where a particular object was detected
 detection_boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
-# Each score represents level of confidence for each of the objects.
-# The score is shown on the result image, together with the class label.
 detection_scores = detection_graph.get_tensor_by_name('detection_scores:0')
 detection_classes = detection_graph.get_tensor_by_name('detection_classes:0')
-# Number of objects detected
 num_detections = detection_graph.get_tensor_by_name('num_detections:0')
-# code source of tensorflow model loading: https://www.geeksforgeeks.org/ml-training-image-classifier-using-tensorflow-object-detection-api/
-print("[INFO] Model loaded.")
-colors_hash = {}
+
 while True:
     frames = pipeline.wait_for_frames()
     color_frame = frames.get_color_frame()
+    if not color_frame:
+        continue
 
     # Convert images to numpy arrays
     color_image = np.asanyarray(color_frame.get_data())
-    scaled_size = (color_frame.width, color_frame.height)
-    # expand image dimensions to have shape: [1, None, None, 3]
-    # i.e. a single-column array, where each item in the column has the pixel RGB value
     image_expanded = np.expand_dims(color_image, axis=0)
-    # Perform the actual detection by running the model with the image as input
-    (boxes, scores, classes, num) = sess.run([detection_boxes, detection_scores, detection_classes, num_detections],
-                                                feed_dict={image_tensor: image_expanded})
 
-    boxes = np.squeeze(boxes)
-    classes = np.squeeze(classes).astype(np.int32)
-    scores = np.squeeze(scores)
+    # Actual detection.
+    (boxes, scores, classes, num) = sess.run(
+        [detection_boxes, detection_scores, detection_classes, num_detections],
+        feed_dict={image_tensor: image_expanded})
 
-    for idx in range(int(num)):
-        class_ = classes[idx]
-        score = scores[idx]
-        box = boxes[idx]
-        
-        if class_ not in colors_hash:
-            colors_hash[class_] = tuple(np.random.choice(range(256), size=3))
-        
-        if score > 0.6:
-            left = int(box[1] * color_frame.width)
-            top = int(box[0] * color_frame.height)
-            right = int(box[3] * color_frame.width)
-            bottom = int(box[2] * color_frame.height)
-            
-            p1 = (left, top)
-            p2 = (right, bottom)
-            # draw box
-            r, g, b = colors_hash[class_]
-            cv2.rectangle(color_image, p1, p2, (int(r), int(g), int(b)), 2, 1)
+    # Visualization of the results of a detection
+    vis_util.visualize_boxes_and_labels_on_image_array(
+        color_image,
+        np.squeeze(boxes),
+        np.squeeze(classes).astype(np.int32),
+        np.squeeze(scores),
+        category_index,
+        use_normalized_coordinates=True,
+        line_thickness=8)
 
-    cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
-    cv2.imshow('RealSense', color_image)
-    cv2.waitKey(1)
+    cv2.imshow('RealSense Object Detection', color_image)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
-print("[INFO] stop streaming ...")
 pipeline.stop()
+cv2.destroyAllWindows()
