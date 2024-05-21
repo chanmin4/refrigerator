@@ -18,8 +18,8 @@ pipeline.start(config)
 print("[INFO] Camera ready.")
 
 # Model and label paths
-PATH_TO_CKPT = 'c:\\Users\\Jong Min Lee\\OneDrive\\Desktop\\github\\refrigerator\\realsense\\frozen_inference_graph.pb'
-PATH_TO_LABELS = 'c:\\Users\\Jong Min Lee\\OneDrive\\Desktop\\github\\refrigerator\\realsense\\mscoco_label_map.pbtxt'
+PATH_TO_CKPT = './frozen_inference_graph.pb'
+PATH_TO_LABELS = './mscoco_label_map.pbtxt'
 NUM_CLASSES = 90
 
 # Load the label map

@@ -42,7 +42,6 @@ class FasterRCNNResnetV1FeatureExtractor(
                resnet_model,
                is_training,
                first_stage_features_stride,
-               batch_norm_trainable=False,
                reuse_weights=None,
                weight_decay=0.0):
     """Constructor.
@@ -52,7 +51,6 @@ class FasterRCNNResnetV1FeatureExtractor(
       resnet_model: Definition of the Resnet V1 model.
       is_training: See base class.
       first_stage_features_stride: See base class.
-      batch_norm_trainable: See base class.
       reuse_weights: See base class.
       weight_decay: See base class.
 
@@ -64,16 +62,13 @@ class FasterRCNNResnetV1FeatureExtractor(
     self._architecture = architecture
     self._resnet_model = resnet_model
     super(FasterRCNNResnetV1FeatureExtractor, self).__init__(
-        is_training, first_stage_features_stride, batch_norm_trainable,
-        reuse_weights, weight_decay)
+        is_training, first_stage_features_stride, reuse_weights, weight_decay)
 
   def preprocess(self, resized_inputs):
     """Faster R-CNN Resnet V1 preprocessing.
 
     VGG style channel mean subtraction as described here:
     https://gist.github.com/ksimonyan/211839e770f7b538e2d8#file-readme-md
-    Note that if the number of channels is not equal to 3, the mean subtraction
-    will be skipped and the original resized_inputs will be returned.
 
     Args:
       resized_inputs: A [batch, height_in, width_in, channels] float32 tensor
@@ -84,11 +79,8 @@ class FasterRCNNResnetV1FeatureExtractor(
         tensor representing a batch of images.
 
     """
-    if resized_inputs.shape.as_list()[3] == 3:
-      channel_means = [123.68, 116.779, 103.939]
-      return resized_inputs - [[channel_means]]
-    else:
-      return resized_inputs
+    channel_means = [123.68, 116.779, 103.939]
+    return resized_inputs - [[channel_means]]
 
   def _extract_proposal_features(self, preprocessed_inputs, scope):
     """Extracts first stage RPN features.
@@ -100,9 +92,6 @@ class FasterRCNNResnetV1FeatureExtractor(
 
     Returns:
       rpn_feature_map: A tensor with shape [batch, height, width, depth]
-      activations: A dictionary mapping feature extractor tensor names to
-        tensors
-
     Raises:
       InvalidArgumentError: If the spatial size of `preprocessed_inputs`
         (height or width) is less than 33.
@@ -119,8 +108,7 @@ class FasterRCNNResnetV1FeatureExtractor(
 
     with tf.control_dependencies([shape_assert]):
       # Disables batchnorm for fine-tuning with smaller batch sizes.
-      # TODO(chensun): Figure out if it is needed when image
-      # batch size is bigger.
+      # TODO: Figure out if it is needed when image batch size is bigger.
       with slim.arg_scope(
           resnet_utils.resnet_arg_scope(
               batch_norm_epsilon=1e-5,
@@ -131,14 +119,14 @@ class FasterRCNNResnetV1FeatureExtractor(
           _, activations = self._resnet_model(
               preprocessed_inputs,
               num_classes=None,
-              is_training=self._train_batch_norm,
+              is_training=False,
               global_pool=False,
               output_stride=self._first_stage_features_stride,
               spatial_squeeze=False,
               scope=var_scope)
 
     handle = scope + '/%s/block3' % self._architecture
-    return activations[handle], activations
+    return activations[handle]
 
   def _extract_box_classifier_features(self, proposal_feature_maps, scope):
     """Extracts second stage box classifier features.
@@ -160,8 +148,7 @@ class FasterRCNNResnetV1FeatureExtractor(
               batch_norm_epsilon=1e-5,
               batch_norm_scale=True,
               weight_decay=self._weight_decay)):
-        with slim.arg_scope([slim.batch_norm],
-                            is_training=self._train_batch_norm):
+        with slim.arg_scope([slim.batch_norm], is_training=False):
           blocks = [
               resnet_utils.Block('block4', resnet_v1.bottleneck, [{
                   'depth': 2048,
@@ -180,7 +167,6 @@ class FasterRCNNResnet50FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
   def __init__(self,
                is_training,
                first_stage_features_stride,
-               batch_norm_trainable=False,
                reuse_weights=None,
                weight_decay=0.0):
     """Constructor.
@@ -188,7 +174,6 @@ class FasterRCNNResnet50FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
     Args:
       is_training: See base class.
       first_stage_features_stride: See base class.
-      batch_norm_trainable: See base class.
       reuse_weights: See base class.
       weight_decay: See base class.
 
@@ -198,8 +183,7 @@ class FasterRCNNResnet50FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
     """
     super(FasterRCNNResnet50FeatureExtractor, self).__init__(
         'resnet_v1_50', resnet_v1.resnet_v1_50, is_training,
-        first_stage_features_stride, batch_norm_trainable,
-        reuse_weights, weight_decay)
+        first_stage_features_stride, reuse_weights, weight_decay)
 
 
 class FasterRCNNResnet101FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
@@ -208,7 +192,6 @@ class FasterRCNNResnet101FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
   def __init__(self,
                is_training,
                first_stage_features_stride,
-               batch_norm_trainable=False,
                reuse_weights=None,
                weight_decay=0.0):
     """Constructor.
@@ -216,7 +199,6 @@ class FasterRCNNResnet101FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
     Args:
       is_training: See base class.
       first_stage_features_stride: See base class.
-      batch_norm_trainable: See base class.
       reuse_weights: See base class.
       weight_decay: See base class.
 
@@ -226,8 +208,7 @@ class FasterRCNNResnet101FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
     """
     super(FasterRCNNResnet101FeatureExtractor, self).__init__(
         'resnet_v1_101', resnet_v1.resnet_v1_101, is_training,
-        first_stage_features_stride, batch_norm_trainable,
-        reuse_weights, weight_decay)
+        first_stage_features_stride, reuse_weights, weight_decay)
 
 
 class FasterRCNNResnet152FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
@@ -236,7 +217,6 @@ class FasterRCNNResnet152FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
   def __init__(self,
                is_training,
                first_stage_features_stride,
-               batch_norm_trainable=False,
                reuse_weights=None,
                weight_decay=0.0):
     """Constructor.
@@ -244,7 +224,6 @@ class FasterRCNNResnet152FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
     Args:
       is_training: See base class.
       first_stage_features_stride: See base class.
-      batch_norm_trainable: See base class.
       reuse_weights: See base class.
       weight_decay: See base class.
 
@@ -254,5 +233,4 @@ class FasterRCNNResnet152FeatureExtractor(FasterRCNNResnetV1FeatureExtractor):
     """
     super(FasterRCNNResnet152FeatureExtractor, self).__init__(
         'resnet_v1_152', resnet_v1.resnet_v1_152, is_training,
-        first_stage_features_stride, batch_norm_trainable,
-        reuse_weights, weight_decay)
+        first_stage_features_stride, reuse_weights, weight_decay)

@@ -25,6 +25,7 @@ Huang et al. (https://arxiv.org/abs/1611.10012)
 import tensorflow as tf
 
 from object_detection.meta_architectures import faster_rcnn_meta_arch
+from object_detection.utils import variables_helper
 from nets import inception_resnet_v2
 
 slim = tf.contrib.slim
@@ -37,7 +38,6 @@ class FasterRCNNInceptionResnetV2FeatureExtractor(
   def __init__(self,
                is_training,
                first_stage_features_stride,
-               batch_norm_trainable=False,
                reuse_weights=None,
                weight_decay=0.0):
     """Constructor.
@@ -45,7 +45,6 @@ class FasterRCNNInceptionResnetV2FeatureExtractor(
     Args:
       is_training: See base class.
       first_stage_features_stride: See base class.
-      batch_norm_trainable: See base class.
       reuse_weights: See base class.
       weight_decay: See base class.
 
@@ -55,8 +54,7 @@ class FasterRCNNInceptionResnetV2FeatureExtractor(
     if first_stage_features_stride != 8 and first_stage_features_stride != 16:
       raise ValueError('`first_stage_features_stride` must be 8 or 16.')
     super(FasterRCNNInceptionResnetV2FeatureExtractor, self).__init__(
-        is_training, first_stage_features_stride, batch_norm_trainable,
-        reuse_weights, weight_decay)
+        is_training, first_stage_features_stride, reuse_weights, weight_decay)
 
   def preprocess(self, resized_inputs):
     """Faster R-CNN with Inception Resnet v2 preprocessing.
@@ -101,14 +99,15 @@ class FasterRCNNInceptionResnetV2FeatureExtractor(
     with slim.arg_scope(inception_resnet_v2.inception_resnet_v2_arg_scope(
         weight_decay=self._weight_decay)):
       # Forces is_training to False to disable batch norm update.
-      with slim.arg_scope([slim.batch_norm],
-                          is_training=self._train_batch_norm):
+      with slim.arg_scope([slim.batch_norm], is_training=False):
         with tf.variable_scope('InceptionResnetV2',
                                reuse=self._reuse_weights) as scope:
-          return inception_resnet_v2.inception_resnet_v2_base(
-              preprocessed_inputs, final_endpoint='PreAuxLogits',
-              scope=scope, output_stride=self._first_stage_features_stride,
-              align_feature_maps=True)
+          rpn_feature_map, _ = (
+              inception_resnet_v2.inception_resnet_v2_base(
+                  preprocessed_inputs, final_endpoint='PreAuxLogits',
+                  scope=scope, output_stride=self._first_stage_features_stride,
+                  align_feature_maps=True))
+    return rpn_feature_map
 
   def _extract_box_classifier_features(self, proposal_feature_maps, scope):
     """Extracts second stage box classifier features.
@@ -131,8 +130,7 @@ class FasterRCNNInceptionResnetV2FeatureExtractor(
       with slim.arg_scope(inception_resnet_v2.inception_resnet_v2_arg_scope(
           weight_decay=self._weight_decay)):
         # Forces is_training to False to disable batch norm update.
-        with slim.arg_scope([slim.batch_norm],
-                            is_training=self._train_batch_norm):
+        with slim.arg_scope([slim.batch_norm], is_training=False):
           with slim.arg_scope([slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
                               stride=1, padding='SAME'):
             with tf.variable_scope('Mixed_7a'):
@@ -170,30 +168,30 @@ class FasterRCNNInceptionResnetV2FeatureExtractor(
 
   def restore_from_classification_checkpoint_fn(
       self,
+      checkpoint_path,
       first_stage_feature_extractor_scope,
       second_stage_feature_extractor_scope):
-    """Returns a map of variables to load from a foreign checkpoint.
+    """Returns callable for loading a checkpoint into the tensorflow graph.
 
     Note that this overrides the default implementation in
     faster_rcnn_meta_arch.FasterRCNNFeatureExtractor which does not work for
     InceptionResnetV2 checkpoints.
 
-    TODO(jonathanhuang,rathodv): revisit whether it's possible to force the
-    `Repeat` namescope as created in `_extract_box_classifier_features` to
-    start counting at 2 (e.g. `Repeat_2`) so that the default restore_fn can
-    be used.
+    TODO: revisit whether it's possible to force the `Repeat` namescope as
+    created in `_extract_box_classifier_features` to start counting at 2 (e.g.
+    `Repeat_2`) so that the default restore_fn can be used.
 
     Args:
+      checkpoint_path: Path to checkpoint to restore.
       first_stage_feature_extractor_scope: A scope name for the first stage
         feature extractor.
       second_stage_feature_extractor_scope: A scope name for the second stage
         feature extractor.
 
     Returns:
-      A dict mapping variable names (to load from a checkpoint) to variables in
-      the model graph.
+      a callable which takes a tf.Session as input and loads a checkpoint when
+        run.
     """
-
     variables_to_restore = {}
     for variable in tf.global_variables():
       if variable.op.name.startswith(
@@ -209,5 +207,10 @@ class FasterRCNNInceptionResnetV2FeatureExtractor(
         var_name = var_name.replace(
             second_stage_feature_extractor_scope + '/', '')
         variables_to_restore[var_name] = variable
-    return variables_to_restore
-
+    variables_to_restore = (
+        variables_helper.get_variables_available_in_checkpoint(
+            variables_to_restore, checkpoint_path))
+    saver = tf.train.Saver(variables_to_restore)
+    def restore(sess):
+      saver.restore(sess, checkpoint_path)
+    return restore
