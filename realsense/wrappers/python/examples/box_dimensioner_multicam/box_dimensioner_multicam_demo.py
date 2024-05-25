@@ -33,7 +33,7 @@ def run_demo():
 
 	dispose_frames_for_stablisation = 30  # frames
 
-	chessboard_width = 6 # squares
+	chessboard_width = 6 # squaresr
 	chessboard_height = 9	# squares
 	square_size = 0.0253 # meters
 	#branch testing

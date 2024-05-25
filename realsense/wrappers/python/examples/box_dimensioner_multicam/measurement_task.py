@@ -11,7 +11,36 @@ from realsense_device_manager import post_process_depth_frame
 from helper_functions import convert_depth_frame_to_pointcloud, get_clipped_pointcloud
 from sklearn.cluster import DBSCAN
 
-def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10):  # eps와 min_samples 조정
+def post_process_clusters(clusters, min_cluster_distance=0.1):
+    """
+    클러스터 후처리를 통해 클러스터를 조정하고 정제합니다.
+    """
+    processed_clusters = []
+
+    for i, cluster1 in enumerate(clusters):
+        is_new_object = True
+        for j, cluster2 in enumerate(clusters):
+            if i != j and calculate_cluster_distance(cluster1, cluster2) < min_cluster_distance:
+                is_new_object = False
+                break
+        if is_new_object:
+            processed_clusters.append(cluster1)
+
+    return processed_clusters
+
+def calculate_cluster_distance(cluster1, cluster2):
+    """
+    두 클러스터 간의 거리를 계산합니다.
+    """
+    center1 = np.mean(cluster1, axis=1)
+    center2 = np.mean(cluster2, axis=1)
+    distance = np.linalg.norm(center1 - center2)
+    return distance
+
+def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10, min_cluster_distance=0.1):
+    """
+    클러스터링을 수행하고 클러스터 후처리를 적용합니다.
+    """
     if point_cloud.size == 0 or point_cloud.shape[1] == 0:
         return []
 
@@ -21,7 +50,11 @@ def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10):  # eps와 min_sam
     unique_labels = set(labels)
     clusters = [point_cloud[:, labels == k] for k in unique_labels if k != -1]
 
-    return clusters
+    # 클러스터 후처리
+    processed_clusters = post_process_clusters(clusters, min_cluster_distance)
+
+    return processed_clusters
+
 def calculate_boundingbox_points(clusters, calibration_info_devices, depth_threshold=0.01):
 	# 최종 결과와 각 치수를 저장할 빈 리스트
 	bounding_box_points_color_image = {}
@@ -29,7 +62,7 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
 
 	for idx, cluster in enumerate(clusters): 
 		if isinstance(cluster, np.ndarray) and cluster.shape[1] >= 3:
-			print(f"Cluster {idx}: {cluster.shape[1]} points")  # 클러스터 크기 출력
+			print(f"Cluster {idx}")  # 클러스터 갯수 출력
 			coord = cluster[:2, :].T.astype('float32')  # X, Y 좌표만 사용
 			min_area_rect = cv2.minAreaRect(coord)
 			box_points = cv2.boxPoints(min_area_rect)

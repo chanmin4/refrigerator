@@ -1,4 +1,9 @@
 import os
+import sys
+
+# 경로 수정필요
+sys.path.append(os.path.abspath("C:\\Users\\Jong Min Lee\\OneDrive\\Desktop\\github\\refrigerator\\realsense"))
+
 import numpy as np
 import tensorflow as tf
 import cv2
