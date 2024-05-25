@@ -3,20 +3,68 @@
 ##################################################################################################
 ##                  Box Dimensioner with multiple cameras: Helper files 					  ####
 ##################################################################################################
-
 import pyrealsense2 as rs
 import numpy as np
 import cv2
+import random
+import time
+
 from realsense_device_manager import post_process_depth_frame
 from helper_functions import convert_depth_frame_to_pointcloud, get_clipped_pointcloud
 from sklearn.cluster import DBSCAN
+from wisepaasdatahubedgesdk.EdgeAgent import EdgeAgent
+import wisepaasdatahubedgesdk.Common.Constants as constant
+from wisepaasdatahubedgesdk.Model.Edge import EdgeAgentOptions, DCCSOptions, EdgeData, EdgeTag, EdgeConfig, DeviceConfig, AnalogTagConfig, DiscreteTagConfig, TextTagConfig
+
+# EdgeAgent 초기화
+edgeAgentOptions = EdgeAgentOptions(nodeId='3607ae3d-5e1e-4171-8706-b6a111fa05ac')
+edgeAgentOptions.connectType = constant.ConnectType['DCCS']
+dccsOptions = DCCSOptions(apiUrl='https://api-dccs-ensaas.sa.wise-paas.com/', credentialKey='8d47cc1fab2e0a5207ab7da336ae4atl')
+edgeAgentOptions.DCCS = dccsOptions
+edgeAgent = EdgeAgent(edgeAgentOptions)
+
+def on_connected(edgeAgent, isConnected):
+    print("Connected to DataHub!")
+    config = __generateConfig()
+    edgeAgent.uploadConfig(action=constant.ActionType['Create'], edgeConfig=config)
+
+def on_disconnected(edgeAgent, isDisconnected):
+    print("Disconnected from DataHub.")
+
+def __generateConfig():
+    config = EdgeConfig()
+    deviceConfig = DeviceConfig(id='Device1', name='Device1', description='Device1', deviceType='Smart Device1', retentionPolicyName='')
+    analog = AnalogTagConfig(name='Volume', description='Volume in cm³', readOnly=False, arraySize=0, spanHigh=10000, spanLow=0, engineerUnit='cm³', integerDisplayFormat=4, fractionDisplayFormat=2)
+    deviceConfig.analogTagList.append(analog)
+    config.node.deviceList.append(deviceConfig)
+    return config
+
+edgeAgent.on_connected = on_connected
+edgeAgent.on_disconnected = on_disconnected
+edgeAgent.connect()
+
+time.sleep(5)  # 연결이 설정될 때까지 대기
+
+def send_data_to_datahub(volumes):
+    edgeData = EdgeData()
+    deviceId = 'volume_camera'
+    tagName = 'volume'
+
+    if isinstance(volumes, list):
+        for volume in volumes:
+            tag = EdgeTag(deviceId, tagName, volume)
+            edgeData.tagList.append(tag)
+            print(f"Data {volume} sent to DataHub")
+    else:
+        tag = EdgeTag(deviceId, tagName, volumes)
+        edgeData.tagList.append(tag)
+        print(f"Data {volumes} sent to DataHub")
+
+    edgeAgent.sendData(edgeData)
+
 
 def post_process_clusters(clusters, min_cluster_distance=0.1):
-    """
-    클러스터 후처리를 통해 클러스터를 조정하고 정제합니다.
-    """
     processed_clusters = []
-
     for i, cluster1 in enumerate(clusters):
         is_new_object = True
         for j, cluster2 in enumerate(clusters):
@@ -25,75 +73,74 @@ def post_process_clusters(clusters, min_cluster_distance=0.1):
                 break
         if is_new_object:
             processed_clusters.append(cluster1)
-
     return processed_clusters
 
 def calculate_cluster_distance(cluster1, cluster2):
-    """
-    두 클러스터 간의 거리를 계산합니다.
-    """
     center1 = np.mean(cluster1, axis=1)
     center2 = np.mean(cluster2, axis=1)
     distance = np.linalg.norm(center1 - center2)
     return distance
 
 def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10, min_cluster_distance=0.1):
-    """
-    클러스터링을 수행하고 클러스터 후처리를 적용합니다.
-    """
     if point_cloud.size == 0 or point_cloud.shape[1] == 0:
         return []
-
-    # DBSCAN 실행
     db = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=-1).fit(point_cloud.T)
     labels = db.labels_
     unique_labels = set(labels)
     clusters = [point_cloud[:, labels == k] for k in unique_labels if k != -1]
-
-    # 클러스터 후처리
     processed_clusters = post_process_clusters(clusters, min_cluster_distance)
-
     return processed_clusters
 
 def calculate_boundingbox_points(clusters, calibration_info_devices, depth_threshold=0.01):
-	# 최종 결과와 각 치수를 저장할 빈 리스트
-	bounding_box_points_color_image = {}
-	lengths, widths, heights = [], [], []
+    bounding_box_points_color_image = {}
+    lengths, widths, heights = [], [], []
+    volumes = []  # 클러스터 부피 리스트
 
-	for idx, cluster in enumerate(clusters): 
-		if isinstance(cluster, np.ndarray) and cluster.shape[1] >= 3:
-			print(f"Cluster {idx}")  # 클러스터 갯수 출력
-			coord = cluster[:2, :].T.astype('float32')  # X, Y 좌표만 사용
-			min_area_rect = cv2.minAreaRect(coord)
-			box_points = cv2.boxPoints(min_area_rect)
-			
-			# 각 치수 계산
-			width, height = min_area_rect[1]
-			if width < height:
-				width, height = height, width
-			lengths.append(np.linalg.norm(box_points[0] - box_points[1]))
-			widths.append(np.linalg.norm(box_points[1] - box_points[2]))
-			heights.append(max(cluster[2,:]) - min(cluster[2,:]) + depth_threshold)
-			
-			height_array = np.array([[-height], [-height], [-height], [-height], [0], [0], [0], [0]])
-			bounding_box_world_3d = np.column_stack((np.row_stack((box_points,box_points)), height_array))
-			# 이미지 좌표로 변환
-			for device, calibration_info in calibration_info_devices.items():
-				bounding_box_device_3d = calibration_info[0].inverse().apply_transformation(bounding_box_world_3d.transpose())
-				color_pixel=[]
-				bounding_box_device_3d = bounding_box_device_3d.transpose().tolist()
-				for bounding_box_point in bounding_box_device_3d:
-					bounding_box_color_image_point = rs.rs2_transform_point_to_point(calibration_info[2], bounding_box_point)
-					color_pixel.append(rs.rs2_project_point_to_pixel(calibration_info[1][rs.stream.color], bounding_box_color_image_point))
-				if device not in bounding_box_points_color_image:
-					bounding_box_points_color_image[device] = []
-				bounding_box_points_color_image[device].append(np.row_stack(color_pixel))
-	# 결과 처리: 아무런 클러스터도 처리되지 않았다면 기본값 반환
-	# 모든 클러스터 처리 후에 결과 반환
-	if lengths and widths and heights:  # 유효한 클러스터가 있었는지 확인
-		return bounding_box_points_color_image, np.mean(lengths), np.mean(widths), np.mean(heights)
-	else:
-		return {}, 0, 0, 0  # 기본값 반환
+    for idx, cluster in enumerate(clusters):
+        if isinstance(cluster, np.ndarray) and cluster.shape[1] >= 3:
+            print(f"Cluster {idx}")  # 클러스터 갯수 출력
+            coord = cluster[:2, :].T.astype('float32')  # X, Y 좌표만 사용
+            min_area_rect = cv2.minAreaRect(coord)
+            box_points = cv2.boxPoints(min_area_rect)
+            
+            # 각 치수 계산
+            width, height = min_area_rect[1]
+            if width < height:
+                width, height = height, width
+            length = np.linalg.norm(box_points[0] - box_points[1])
+            widths.append(np.linalg.norm(box_points[1] - box_points[2]))
+            heights.append(max(cluster[2,:]) - min(cluster[2,:]) + depth_threshold)
+            lengths.append(length)  # 기존 코드에서는 length 계산 후 바로 저장
+
+            # 부피 계산 및 변환
+            volume_mm3 = length * width * height
+            volume_cm3 = volume_mm3 / 1000  # mm³를 cm³로 변환
+            volumes.append(volume_cm3)  # 부피 리스트에 추가
+            print(f"Cluster {idx + 1}: Length = {length:.2f} mm, Width = {width:.2f} mm, Height = {height:.2f} mm, Volume = {volume_cm3:.2f} cubic centimeters")
+
+            height_array = np.array([[-height], [-height], [-height], [-height], [0], [0], [0], [0]])
+            bounding_box_world_3d = np.column_stack((np.row_stack((box_points, box_points)), height_array))
+            # 이미지 좌표로 변환
+            for device, calibration_info in calibration_info_devices.items():
+                bounding_box_device_3d = calibration_info[0].inverse().apply_transformation(bounding_box_world_3d.transpose())
+                color_pixel = []
+                bounding_box_device_3d = bounding_box_device_3d.transpose().tolist()
+                for bounding_box_point in bounding_box_device_3d:
+                    bounding_box_color_image_point = rs.rs2_transform_point_to_point(calibration_info[2], bounding_box_point)
+                    color_pixel.append(rs.rs2_project_point_to_pixel(calibration_info[1][rs.stream.color], bounding_box_color_image_point))
+                if device not in bounding_box_points_color_image:
+                    bounding_box_points_color_image[device] = []
+                bounding_box_points_color_image[device].append(np.row_stack(color_pixel))
+    
+    # 결과 처리: 아무런 클러스터도 처리되지 않았다면 기본값 반환
+    # 모든 클러스터 처리 후에 결과 반환
+    if lengths and widths and heights:  # 유효한 클러스터가 있었는지 확인
+        send_data_to_datahub(volumes)  # 부피 리스트 전송
+        return bounding_box_points_color_image, np.mean(lengths), np.mean(widths), np.mean(heights)
+    else:
+        send_data_to_datahub([])  # 부피 리스트가 비어있음을 전송
+        return {}, 0, 0, 0  # 기본값 반환
+
 def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2d, depth_threshold=0.01):
 	"""
 	Calculate the cumulative pointcloud from the multiple devices.

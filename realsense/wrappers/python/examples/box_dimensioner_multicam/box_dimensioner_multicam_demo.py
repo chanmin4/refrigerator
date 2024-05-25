@@ -130,7 +130,6 @@ def run_demo():
 				clusters = cluster_pointcloud(point_cloud)
 				# Get the bounding box for the pointcloud in image coordinates of the color imager
 				bounding_box_points_color_image, length, width, height = calculate_boundingbox_points(clusters, calibration_info_devices)
-				print(length,width,height)
 				# Draw the bounding box points on the color image and visualise the results
 				visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)
 

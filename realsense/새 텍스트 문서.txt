@@ -1,0 +1,99 @@
+import os
+import sys
+import pyrealsense2 as rs
+import numpy as np
+import tensorflow as tf
+import cv2
+from object_detection.utils import label_map_util
+from object_detection.utils import visualization_utils as vis_util
+from collections import defaultdict
+# 현재 스크립트의 디렉터리를 기준으로 상대경로 추가
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, 'wrappers', 'python', 'examples'))
+from realsense_device_manager import DeviceManager
+from calibration_kabsch import PoseEstimation
+from helper_functions import get_boundary_corners_2D
+from measurement_task import cluster_pointcloud, calculate_boundingbox_points, calculate_cumulative_pointcloud, visualise_measurements
+
+# Configure paths for object detection
+PATH_TO_CKPT = './frozen_inference_graph.pb'
+PATH_TO_LABELS = './mscoco_label_map.pbtxt'
+NUM_CLASSES = 90
+
+# Load the label map
+label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
+categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
+category_index = label_map_util.create_category_index(categories)
+
+# Load the TensorFlow model into memory
+detection_graph = tf.Graph()
+with detection_graph.as_default():
+    od_graph_def = tf.compat.v1.GraphDef()
+    with tf.compat.v1.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
+        serialized_graph = fid.read()
+        od_graph_def.ParseFromString(serialized_graph)
+        tf.compat.v1.import_graph_def(od_graph_def, name='')
+    sess = tf.compat.v1.Session(graph=detection_graph)
+
+# TensorFlow placeholders
+image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+detection_boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+detection_scores = detection_graph.get_tensor_by_name('detection_scores:0')
+detection_classes = detection_graph.get_tensor_by_name('detection_classes:0')
+num_detections = detection_graph.get_tensor_by_name('num_detections:0')
+
+# RealSense camera setup
+pipeline = rs.pipeline()
+config = rs.config()
+config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
+config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+pipeline.start(config)
+
+def object_detection(color_image):
+    image_expanded = np.expand_dims(color_image, axis=0)
+    (boxes, scores, classes, num) = sess.run(
+        [detection_boxes, detection_scores, detection_classes, num_detections],
+        feed_dict={image_tensor: image_expanded})
+    vis_util.visualize_boxes_and_labels_on_image_array(
+        color_image,
+        np.squeeze(boxes),
+        np.squeeze(classes).astype(np.int32),
+        np.squeeze(scores),
+        category_index,
+        use_normalized_coordinates=True,
+        line_thickness=8)
+    return color_image
+
+def volume_measurement(frames):
+    # Placeholder for volume measurement logic
+    depth_frame = frames.get_depth_frame()
+    depth_image = np.asanyarray(depth_frame.get_data())
+    # Add volume measurement code here
+    return depth_image
+
+try:
+    while True:
+        frames = pipeline.wait_for_frames()
+        depth_frame = frames.get_depth_frame()
+        color_frame = frames.get_color_frame()
+
+        if not depth_frame or not color_frame:
+            continue
+
+        # Object detection
+        color_image = np.asanyarray(color_frame.get_data())
+        color_image_with_detections = object_detection(color_image.copy())
+
+        # Volume measurement
+        depth_image = volume_measurement(frames)
+
+        # Display results
+        cv2.imshow('RealSense Object Detection', color_image_with_detections)
+        cv2.imshow('Depth Image', depth_image)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+finally:
+    pipeline.stop()
+    cv2.destroyAllWindows()
