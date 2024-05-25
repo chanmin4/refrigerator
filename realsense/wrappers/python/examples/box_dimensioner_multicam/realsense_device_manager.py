@@ -201,7 +201,7 @@ class DeviceManager:
 		print("\n")
 		print(os.getcwd())
 		print("\n")
-		os.chdir('./wrappers/python/examples/box_dimensioner_multicam')
+		os.chdir('./realsense/wrappers/python/examples/box_dimensioner_multicam')
 		print(os.getcwd())
 		with open(path_to_settings_file, 'r') as file:
 			json_text = file.read().strip()
