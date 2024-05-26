@@ -85,6 +85,8 @@ librealsense-log.txt
 *.dll
 *.list
 *.json
+!HighResHighAccuracyPreset.json
+
 *.ini
 *.cxx
 
