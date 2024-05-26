@@ -10,7 +10,7 @@ if sys.version_info[0] >= 3:
     sys.stdout.reconfigure(encoding='utf-8')
 
 # Initialize the webcam
-capture = cv2.VideoCapture(2)
+capture = cv2.VideoCapture(0)
 capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
