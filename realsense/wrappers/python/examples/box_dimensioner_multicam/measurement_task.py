@@ -1,46 +1,13 @@
-##################################################################################################
-##       License: Apache 2.0. See LICENSE file in root directory.                               ##
-##################################################################################################
-##                  Box Dimensioner with multiple cameras: Helper files                        ##
-##################################################################################################
+# measurement_task.py
 import pyrealsense2 as rs
 import numpy as np
 import cv2
 import time
-
 from realsense_device_manager import post_process_depth_frame
 from helper_functions import convert_depth_frame_to_pointcloud, get_clipped_pointcloud
 from sklearn.cluster import DBSCAN
-from wisepaasdatahubedgesdk.EdgeAgent import EdgeAgent
-import wisepaasdatahubedgesdk.Common.Constants as constant
-from wisepaasdatahubedgesdk.Model.Edge import EdgeAgentOptions, DCCSOptions, EdgeData, EdgeTag, EdgeConfig, DeviceConfig, AnalogTagConfig, DiscreteTagConfig, TextTagConfig
-
-# EdgeAgent 초기화
-edgeAgentOptions = EdgeAgentOptions(nodeId='3607ae3d-5e1e-4171-8706-b6a111fa05ac')
-edgeAgentOptions.connectType = constant.ConnectType['DCCS']
-dccsOptions = DCCSOptions(apiUrl='https://api-dccs-ensaas.sa.wise-paas.com/', credentialKey='8d47cc1fab2e0a5207ab7da336ae4atl')
-edgeAgentOptions.DCCS = dccsOptions
-edgeAgent = EdgeAgent(edgeAgentOptions)
-
-def on_connected(edgeAgent, isConnected):
-    print("Connected to DataHub!")
-    config = __generateConfig()
-    edgeAgent.uploadConfig(action=constant.ActionType['Create'], edgeConfig=config)
-
-def on_disconnected(edgeAgent, isDisconnected):
-    print("Disconnected from DataHub.")
-
-def __generateConfig():
-    config = EdgeConfig()
-    deviceConfig = DeviceConfig(id='volume_camera', name='volume_cal', description='', deviceType='camera', retentionPolicyName='')
-    analog = AnalogTagConfig(name='volume', description='Volume in L', readOnly=False, arraySize=0, spanHigh=10000, spanLow=0, engineerUnit='L', integerDisplayFormat=4, fractionDisplayFormat=2)
-    deviceConfig.analogTagList.append(analog)
-    config.node.deviceList.append(deviceConfig)
-    return config
-
-edgeAgent.on_connected = on_connected
-edgeAgent.on_disconnected = on_disconnected
-edgeAgent.connect()
+from datahub_connector import edgeAgent  # Import the shared edgeAgent
+from wisepaasdatahubedgesdk.Model.Edge import EdgeData, EdgeTag  # Ensure EdgeData and EdgeTag are imported
 
 time.sleep(5)  # 연결이 설정될 때까지 대기
 
@@ -81,7 +48,6 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
 
     for idx, cluster in enumerate(clusters):
         if isinstance(cluster, np.ndarray) and cluster.shape[1] >= 3:
-            print(f"Cluster {idx}")  # 클러스터 갯수 출력
             coord = cluster[:2, :].T.astype('float32')  # X, Y 좌표만 사용
             min_area_rect = cv2.minAreaRect(coord)
             box_points = cv2.boxPoints(min_area_rect)
@@ -105,8 +71,6 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
             max_height_mm = max_height * 1_000  # m를 mm로 변환
             volume_mm3 = length_mm * width_mm * max_height_mm  # mm³로 변환
             volumes.append(volume_mm3)  # 부피 리스트에 추가
-            print(f"Length = {length_mm:.2f} mm, Width = {width_mm:.2f} mm, Height = {max_height_mm:.2f} mm, Volume = {volume_mm3:.2f} cubic millimeters")
-
             height_array = np.array([[-max_height], [-max_height], [-max_height], [-max_height], [0], [0], [0], [0]])
             bounding_box_world_3d = np.column_stack((np.row_stack((box_points, box_points)), height_array))
             # 이미지 좌표로 변환
@@ -131,6 +95,10 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
         current_time = time.time()
         if current_time - last_time_sent >= 5:  # 5초마다
             send_data_to_datahub(total_volume_l)
+            for idx, volume in enumerate(volumes):
+                print(f"Cluster {idx}")
+                print(f"Length = {lengths[idx] * 1_000:.2f} mm, Width = {widths[idx] * 1_000:.2f} mm, Height = {heights[idx] * 1_000:.2f} mm, Volume = {volume:.2f} cubic millimeters")
+            
             last_time_sent = current_time  # 마지막 전송 시간 업데이트
 
         return bounding_box_points_color_image, np.mean(lengths) * 1_000, np.mean(widths) * 1_000, np.mean(heights) * 1_000  # mm 단위로 변환하여 반환
