@@ -1,0 +1,15 @@
+{
+	"cSpell.words": [
+		"childdevice",
+		"commitlint",
+		"conventionalcommits",
+		"devicepreferences",
+		"deviceprofiles",
+		"Hubdevices",
+		"installedapps",
+		"PENGYOU",
+		"smartthingspi",
+		"sshpk"
+	],
+	"typescript.tsdk": "node_modules/typescript/lib"
+}

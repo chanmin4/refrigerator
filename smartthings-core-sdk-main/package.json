@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@smartthings/core-sdk": "^8.1.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12"
+  }
+}
