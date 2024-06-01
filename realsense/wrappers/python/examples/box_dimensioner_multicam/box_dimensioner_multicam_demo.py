@@ -1,17 +1,3 @@
-###########################################################################################################################
-##                      License: Apache 2.0. See LICENSE file in root directory.                                         ##
-###########################################################################################################################
-##                  Simple Box Dimensioner with multiple cameras: Main demo file                                         ##
-###########################################################################################################################
-## Workflow description:                                                                                                 ##
-## 1. Place the calibration chessboard object into the field of view of all the realsense cameras.                       ##
-##    Update the chessboard parameters in the script in case a different size is chosen.                                 ##
-## 2. Start the program.                                                                                                 ##
-## 3. Allow calibration to occur and place the desired object ON the calibration object when the program asks for it.    ##
-##    Make sure that the object to be measured is not bigger than the calibration object in length and width.            ##
-## 4. The length, width and height of the bounding box of the object is then displayed in millimeters.                   ##
-###########################################################################################################################
-
 # Import RealSense, OpenCV and NumPy
 import pyrealsense2 as rs
 import cv2
@@ -40,6 +26,23 @@ def send_image_to_datahub(color_image, edgeAgent):
     edgeData.tagList.append(tag)
     edgeAgent.sendData(edgeData)
     print("Color image sent to DataHub from device volume_camera")
+
+def visualize_calibration_status(frames, transformation_result_kabsch, intrinsics_devices, chessboard_params):
+    for device_info, frame in frames.items():
+        device = device_info[0]
+        color_image = np.asanyarray(frame[rs.stream.color].get_data())
+        pose_estimator = PoseEstimation(frames, intrinsics_devices, chessboard_params)
+        ret, corners = pose_estimator.detect_chessboard(color_image)
+        
+        if ret:
+            cv2.drawChessboardCorners(color_image, (chessboard_params[1], chessboard_params[0]), corners, ret)
+        
+        cv2.putText(color_image, f"Calibration {'Success' if transformation_result_kabsch[device][0] else 'Failure'}", 
+                    (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+        
+        cv2.imshow(f"Calibration - Device {device}", color_image)
+        cv2.waitKey(1)
+
 def run_demo():
     # Define some constants
     resolution_width = 1280  # pixels
@@ -93,6 +96,8 @@ def run_demo():
                     print("Place the chessboard on the plane where the object needs to be detected..")
                 else:
                     calibrated_device_count += 1
+            
+            visualize_calibration_status(frames, transformation_result_kabsch, intrinsics_devices, chessboard_params)
 
         # Save the transformation object for all devices in an array to use for measurements
         transformation_devices = {}

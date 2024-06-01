@@ -3,13 +3,13 @@
 ##################################################################################################
 ##                  Box Dimensioner with multiple cameras: Helper files 					  ####
 ##################################################################################################
-
+#calibration_kabsch.py
 import pyrealsense2 as rs
 import calculate_rmsd_kabsch as rmsd
 import numpy as np
 from helper_functions import cv_find_chessboard, get_chessboard_points_3D, get_depth_at_pixel, convert_depth_pixel_to_metric_coordinate
 from realsense_device_manager import post_process_depth_frame
-
+import cv2
 """
   _   _        _                      _____                     _    _
  | | | |  ___ | | _ __    ___  _ __  |  ___|_   _  _ __    ___ | |_ (_)  ___   _ __   ___
@@ -125,7 +125,14 @@ class PoseEstimation:
 		self.frames = frames
 		self.intrinsic = intrinsic
 		self.chessboard_params = chessboard_params
-
+	def detect_chessboard(self, color_image):
+		chessboard_size = (self.chessboard_params[1], self.chessboard_params[0])
+		gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+		ret, corners = cv2.findChessboardCorners(gray, chessboard_size, None)
+		if ret:
+			criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+			corners = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
+		return ret, corners
 	def get_chessboard_corners_in3d(self):
 		"""
 		Searches the chessboard corners in the infrared images of

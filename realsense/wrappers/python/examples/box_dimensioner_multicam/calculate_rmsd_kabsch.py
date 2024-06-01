@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#calculate_rmsd_kabsch.py
 __doc__ = \
 """
 
