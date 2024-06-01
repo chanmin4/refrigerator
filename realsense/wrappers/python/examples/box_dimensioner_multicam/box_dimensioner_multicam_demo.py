@@ -45,8 +45,8 @@ def visualize_calibration_status(frames, transformation_result_kabsch, intrinsic
 
 def run_demo():
     # Define some constants
-    resolution_width = 1280  # pixels
-    resolution_height = 720  # pixels
+    resolution_width = 848  # pixels
+    resolution_height = 480  # pixels
     frame_rate = 30  # fps
 
     dispose_frames_for_stabilisation = 30  # frames

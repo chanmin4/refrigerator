@@ -1,4 +1,3 @@
-# measurement_task.py
 import pyrealsense2 as rs
 import numpy as np
 import cv2
@@ -8,6 +7,7 @@ from helper_functions import convert_depth_frame_to_pointcloud, get_clipped_poin
 from sklearn.cluster import DBSCAN
 from datahub_connector import edgeAgent  # Import the shared edgeAgent
 from wisepaasdatahubedgesdk.Model.Edge import EdgeData, EdgeTag  # Ensure EdgeData and EdgeTag are imported
+from scipy.spatial import cKDTree
 
 time.sleep(5)  # 연결이 설정될 때까지 대기
 
@@ -22,23 +22,25 @@ def send_data_to_datahub(total_volume_l):
     edgeAgent.sendData(edgeData)
     print(f"Total volume {total_volume_l} L sent to DataHub")
 
-def post_process_clusters(clusters, min_cluster_distance=0.1):
+def post_process_clusters(clusters, min_cluster_size=100):
     processed_clusters = []
-    for i, cluster1 in enumerate(clusters):
-        is_new_object = True
-        for j, cluster2 in enumerate(clusters):
-            if i != j and calculate_cluster_distance(cluster1, cluster2) < min_cluster_distance:
-                is_new_object = False
-                break
-        if is_new_object:
-            processed_clusters.append(cluster1)
+    for cluster in clusters:
+        if cluster.shape[1] >= min_cluster_size:
+            processed_clusters.append(cluster)
     return processed_clusters
 
-def calculate_cluster_distance(cluster1, cluster2):
-    center1 = np.mean(cluster1, axis=1)
-    center2 = np.mean(cluster2, axis=1)
-    distance = np.linalg.norm(center1 - center2)
-    return distance
+def statistical_outlier_removal(point_cloud, mean_k=20, std_dev_mul_thresh=1.0):
+    if point_cloud.shape[1] < mean_k:
+        return point_cloud
+
+    kdtree = cKDTree(point_cloud.T)
+    distances, _ = kdtree.query(point_cloud.T, k=mean_k)
+    mean_distances = np.mean(distances, axis=1)
+    std_distances = np.std(mean_distances)
+    distance_threshold = np.mean(mean_distances) + std_dev_mul_thresh * std_distances
+
+    filtered_points = point_cloud[:, mean_distances < distance_threshold]
+    return filtered_points
 
 def calculate_boundingbox_points(clusters, calibration_info_devices, depth_threshold=0.01):
     global last_time_sent
@@ -105,28 +107,31 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
     else:
         return {}, 0, 0, 0  # 기본값 반환
 
-def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10, min_cluster_distance=0.1):
+def cluster_pointcloud(point_cloud, eps=0.05, min_samples=10):
     if point_cloud.size == 0 or point_cloud.shape[1] == 0:
         return []
-    db = DBSCAN(eps=eps, min_samples=min_samples, n_jobs=-1).fit(point_cloud.T)
-    labels = db.labels_
+
+    # 통계적 이상치 제거 추가
+    point_cloud = statistical_outlier_removal(point_cloud)
+
+    # KD-Tree 클러스터링 수행
+    tree = cKDTree(point_cloud.T)
+    labels = np.full(point_cloud.shape[1], -1)
+    cluster_id = 0
+
+    for i in range(point_cloud.shape[1]):
+        if labels[i] == -1:
+            neighbors = tree.query_ball_point(point_cloud[:, i], eps)
+            if len(neighbors) >= min_samples:
+                labels[neighbors] = cluster_id
+                cluster_id += 1
+
     unique_labels = set(labels)
     clusters = [point_cloud[:, labels == k] for k in unique_labels if k != -1]
+    # 후처리: 작은 클러스터 제거
+    clusters = post_process_clusters(clusters)
 
-    # 클러스터 병합
-    processed_clusters = []
-    for cluster in clusters:
-        if processed_clusters:
-            distances = [calculate_cluster_distance(cluster, existing_cluster) for existing_cluster in processed_clusters]
-            if min(distances) < min_cluster_distance:
-                closest_cluster_idx = distances.index(min(distances))
-                processed_clusters[closest_cluster_idx] = np.hstack((processed_clusters[closest_cluster_idx], cluster))
-            else:
-                processed_clusters.append(cluster)
-        else:
-            processed_clusters.append(cluster)
-
-    return processed_clusters
+    return clusters
 
 def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2d, depth_threshold=0.01):
     """
