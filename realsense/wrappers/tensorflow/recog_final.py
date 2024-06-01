@@ -3,7 +3,8 @@ import sys
 import time
 import json
 import cv2
-sys.path.append(os.path.abspath("C:\\Users\\Jong Min Lee\\OneDrive\\Desktop\\github\\refrigerator\\realsense"))
+path="./realsense"
+sys.path.append(os.path.abspath(path))
 
 import numpy as np
 import tensorflow as tf
@@ -31,7 +32,7 @@ def send_data_to_datahub(detected_items):
     print(f"Sent detected objects to DataHub: {items_json}")
 
 def run_detection():
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Webcam not detected. Exiting...")
         return
@@ -61,10 +62,17 @@ def run_detection():
                 ret, frame = cap.read()
                 if not ret:
                     continue
+                # 프레임의 원래 크기를 얻습니다.
+                original_height, original_width = frame.shape[:2]
 
+                # 프레임 크기를 두 배로 확대합니다.
+                new_width = original_width * 2
+                new_height = original_height * 2
+                frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+
+                # 이미지에 객체 감지를 수행
                 image_np_expanded = np.expand_dims(frame, axis=0)
                 output_dict = sess.run(tensor_dict, feed_dict={image_tensor: image_np_expanded})
-
                 detected_classes = set()
                 for i in range(int(output_dict['num_detections'][0])):
                     class_id = int(output_dict['detection_classes'][0][i])

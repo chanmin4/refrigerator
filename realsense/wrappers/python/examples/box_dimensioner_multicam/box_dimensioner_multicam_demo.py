@@ -33,7 +33,7 @@ def send_image_to_datahub(color_image, edgeAgent):
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
     
     # Debug: Print the Base64 data before sending
-    print("Sending Base64 data to DataHub:", jpg_as_text)
+    print("Sending Base64 data to DataHub")
     
     edgeData = EdgeData()
     tag = EdgeTag(deviceId='volume_camera', tagName='capture_image', value=jpg_as_text)

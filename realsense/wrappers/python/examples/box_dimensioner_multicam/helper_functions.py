@@ -276,8 +276,3 @@ def get_clipped_pointcloud(pointcloud, boundary):
 	"0번째행에 대해 모든 열 정보<boundary[1] 즉 체스판 inside 인지"
 	pointcloud = pointcloud[:,np.logical_and(pointcloud[1,:]<boundary[3], pointcloud[1,:]>boundary[2])]
 	return pointcloud
-
-
-
-
-
