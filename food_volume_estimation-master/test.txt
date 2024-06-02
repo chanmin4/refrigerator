@@ -1,0 +1,5 @@
+volume_estimator.py --input_images [img_path_1 img_path_2] --depth_model_architecture monovideo_fine_tune_food_videos .json.json
+  --depth_model_weights monovideo_fine_tune_food_videos .h5 --segmentation_weights segmentation_model_weights.h5
+  --fov D --gt_depth_scale S --plate_diameter_prior D --min_depth min_d --max_depth max_d
+  --relaxation_param relax_param --plot_results --results_file results.csv --plots_directory plots/
+  --density_db db.xlsx --food_type type

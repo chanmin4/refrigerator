@@ -45,6 +45,8 @@ def visualize_calibration_status(frames, transformation_result_kabsch, intrinsic
 
 def run_demo():
     # Define some constants
+    #1280,720   848,480 해상도가 높으면 더 멀어져야함  해상도가 낮으면 더가까운거 탐지가능
+    #640,480   640,360  480 270
     resolution_width = 848  # pixels
     resolution_height = 480  # pixels
     frame_rate = 30  # fps
