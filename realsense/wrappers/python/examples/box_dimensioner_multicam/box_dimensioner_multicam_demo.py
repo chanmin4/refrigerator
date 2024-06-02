@@ -159,7 +159,7 @@ def run_demo():
             bounding_box_points_color_image, length, width, height = calculate_boundingbox_points(clusters, calibration_info_devices)
             # Draw the bounding box points on the color image and visualise the results
             visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)
-            time.sleep(0.2)  # 2초 대기
+            time.sleep(0.5)  # 2초 대기
     except KeyboardInterrupt:
         print("The program was interrupted by the user. Closing the program...")
 

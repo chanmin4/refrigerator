@@ -71,17 +71,27 @@ def cluster_and_bounding_box(point_cloud):
     return clusters  # clusters는 numpy 배열입니다.
 
 
-def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2d, depth_threshold=0.01):
-    point_cloud_cumulative = np.array([[], [], []])
+def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices,roi_2d, depth_threshold=0.02):
+    point_cloud_cumulative = np.array([-1, -1, -1]).transpose()
     for (device_info, frame) in frames_devices.items():
         device = device_info[0]
         filtered_depth_frame = post_process_depth_frame(frame[rs.stream.depth], temporal_smooth_alpha=0.1, temporal_smooth_delta=80)
         point_cloud = convert_depth_frame_to_pointcloud(np.asarray(filtered_depth_frame.get_data()), calibration_info_devices[device][1][rs.stream.depth])
         point_cloud = np.asanyarray(point_cloud)
+
+        # 포인트 클라우드를 실제 좌표로 변환
         point_cloud = calibration_info_devices[device][0].apply_transformation(point_cloud)
+        
         point_cloud = get_clipped_pointcloud(point_cloud, roi_2d)
+  
+ 
+        # 특정 깊이 임계값을 적용하여 포인트 필터링
+        #z축 필터링
         point_cloud = point_cloud[:, point_cloud[2, :] < -depth_threshold]
+        
         point_cloud_cumulative = np.column_stack((point_cloud_cumulative, point_cloud))
+    
+    point_cloud_cumulative = np.delete(point_cloud_cumulative, 0, 1)
     return point_cloud_cumulative
 
 def calculate_boundingbox_points(clusters, calibration_info_devices, depth_threshold=0.01):
@@ -89,6 +99,7 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
     bounding_box_points_color_image = {}
     lengths, widths, heights = [], [], []
     volumes = []
+    
     for idx, cluster in enumerate(clusters):
         if isinstance(cluster, np.ndarray) and cluster.shape[1] >= 3:
             coord = cluster[:2, :].T.astype('float32')
@@ -101,6 +112,10 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
             widths.append(np.linalg.norm(box_points[1] - box_points[2]))
             z_values = cluster[2, :]
             max_height = max(z_values) - min(z_values)
+            
+            #if max_height < 0.02:  # 높이가 20mm 이하인 클러스터는 노이즈로 간주하여 필터링
+            #    continue
+            
             heights.append(max_height + depth_threshold)
             lengths.append(length)
             length_mm = length * 1_000

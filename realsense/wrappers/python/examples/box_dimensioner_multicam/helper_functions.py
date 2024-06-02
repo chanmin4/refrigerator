@@ -254,7 +254,7 @@ def get_boundary_corners_2D(points):
 
 
 
-def get_clipped_pointcloud(pointcloud, boundary):
+def get_clipped_pointcloud(pointcloud, boundary,z_threshold=2.0):
 	"""
 	Get the clipped pointcloud withing the X and Y bounds specified in the boundary
 	
@@ -271,8 +271,13 @@ def get_clipped_pointcloud(pointcloud, boundary):
 		The clipped pointcloud
 	
 	"""
-	assert (pointcloud.shape[0]>=2)
-	pointcloud = pointcloud[:,np.logical_and(pointcloud[0,:]<boundary[1], pointcloud[0,:]>boundary[0])]
-	"0번째행에 대해 모든 열 정보<boundary[1] 즉 체스판 inside 인지"
-	pointcloud = pointcloud[:,np.logical_and(pointcloud[1,:]<boundary[3], pointcloud[1,:]>boundary[2])]
+	assert (pointcloud.shape[0] >= 2)
+
+	# X and Y bounds filtering
+	pointcloud = pointcloud[:, np.logical_and(pointcloud[0, :] < boundary[1], pointcloud[0, :] > boundary[0])]
+	pointcloud = pointcloud[:, np.logical_and(pointcloud[1, :] < boundary[3], pointcloud[1, :] > boundary[2])]
+		
+	# Z bounds filtering to include points above and below the chessboard plane
+	pointcloud = pointcloud[:, pointcloud[2, :] >= -z_threshold]
+		
 	return pointcloud
