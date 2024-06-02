@@ -8,7 +8,7 @@ from collections import defaultdict
 from realsense_device_manager import DeviceManager
 from calibration_kabsch import PoseEstimation
 from helper_functions import get_boundary_corners_2D
-from measurement_task import cluster_pointcloud, calculate_boundingbox_points, calculate_cumulative_pointcloud, visualise_measurements
+from measurement_task import cluster_and_bounding_box, calculate_boundingbox_points, calculate_cumulative_pointcloud, visualise_measurements
 from sklearn.cluster import DBSCAN
 from datahub_connector import edgeAgent  # Import the shared edgeAgent
 from wisepaasdatahubedgesdk.Model.Edge import EdgeData, EdgeTag  # Ensure EdgeData and EdgeTag are imported
@@ -148,17 +148,18 @@ def run_demo():
                     color_image = np.asarray(frame[rs.stream.color].get_data())
                     #cv2.imshow('Color Image', color_image)
                     #cv2.waitKey(1)  # Add a small delay for the window to update
-                    send_image_to_datahub(color_image, edgeAgent)
+                    #변경해야함
+                    #send_image_to_datahub(color_image, edgeAgent)
                 last_time_sent = current_time
 
             # Calculate the pointcloud using the depth frames from all the devices
             point_cloud = calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2D)
-            clusters = cluster_pointcloud(point_cloud)
+            clusters = cluster_and_bounding_box(point_cloud)
             # Get the bounding box for the pointcloud in image coordinates of the color imager
             bounding_box_points_color_image, length, width, height = calculate_boundingbox_points(clusters, calibration_info_devices)
             # Draw the bounding box points on the color image and visualise the results
             visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)
-           
+            time.sleep(0.2)  # 2초 대기
     except KeyboardInterrupt:
         print("The program was interrupted by the user. Closing the program...")
 
