@@ -8,10 +8,20 @@ from sklearn.cluster import DBSCAN
 from datahub_connector import edgeAgent
 from wisepaasdatahubedgesdk.Model.Edge import EdgeData, EdgeTag
 from scipy.spatial import cKDTree
-
+import matplotlib.pyplot as plt  # Matplotlib 추가
 time.sleep(5)  # 연결이 설정될 때까지 대기
 
 last_time_sent = time.time()  # 마지막으로 데이터를 전송한 시간 초기화
+
+def visualize_point_cloud(point_cloud, title="Point Cloud"):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(point_cloud[0, :], point_cloud[1, :], point_cloud[2, :], s=1, c=point_cloud[2, :], cmap='viridis')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title(title)
+    plt.show()
 
 def send_data_to_datahub(total_volume_l):
     edgeData = EdgeData()
@@ -28,6 +38,7 @@ def post_process_clusters(clusters, min_cluster_size=100):
         if cluster.shape[1] >= min_cluster_size:
             processed_clusters.append(cluster)
     return processed_clusters
+
 def statistical_outlier_removal(point_cloud, mean_k=20, std_dev_mul_thresh=1.0):
     if point_cloud.shape[1] < mean_k:
         return point_cloud
@@ -40,15 +51,6 @@ def statistical_outlier_removal(point_cloud, mean_k=20, std_dev_mul_thresh=1.0):
 
     filtered_points = point_cloud[:, mean_distances < distance_threshold]
     return filtered_points
-
-def remove_chessboard_points(point_cloud, chessboard_corners):
-    mask = np.ones(point_cloud.shape[1], dtype=bool)
-    for corner in chessboard_corners:
-        x_min, x_max = corner[0] - 5, corner[0] + 5
-        y_min, y_max = corner[1] - 5, corner[1] + 5
-        mask &= ~((point_cloud[0, :] >= x_min) & (point_cloud[0, :] <= x_max) &
-                  (point_cloud[1, :] >= y_min) & (point_cloud[1, :] <= y_max))
-    return point_cloud[:, mask]
 
 def segment_objects_using_color(image, depth_image):
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -70,24 +72,38 @@ def cluster_and_bounding_box(point_cloud):
     clusters = post_process_clusters(clusters)
     return clusters  # clusters는 numpy 배열입니다.
 
-
-def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices,roi_2d, depth_threshold=0.02):
+def calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2d, depth_threshold=0.02):
     point_cloud_cumulative = np.array([-1, -1, -1]).transpose()
+    
     for (device_info, frame) in frames_devices.items():
         device = device_info[0]
-        filtered_depth_frame = post_process_depth_frame(frame[rs.stream.depth], temporal_smooth_alpha=0.1, temporal_smooth_delta=80)
-        point_cloud = convert_depth_frame_to_pointcloud(np.asarray(filtered_depth_frame.get_data()), calibration_info_devices[device][1][rs.stream.depth])
+        # filtered_depth_frame = post_process_depth_frame(frame[rs.stream.depth], temporal_smooth_alpha=5, temporal_smooth_delta=200)
+        depth_frame = frame[rs.stream.depth]
+        point_cloud = convert_depth_frame_to_pointcloud(np.asarray(depth_frame.get_data()), calibration_info_devices[device][1][rs.stream.depth])
         point_cloud = np.asanyarray(point_cloud)
 
         # 포인트 클라우드를 실제 좌표로 변환
         point_cloud = calibration_info_devices[device][0].apply_transformation(point_cloud)
         
+        # 포인트 클라우드 시각화
+        #visualize_point_cloud(point_cloud, title=f"Point Cloud from Device {device}")
+        
+        # ROI 내의 포인트만 유지
         point_cloud = get_clipped_pointcloud(point_cloud, roi_2d)
-  
- 
-        # 특정 깊이 임계값을 적용하여 포인트 필터링
-        #z축 필터링
+        # 포인트 클라우드 시각화
+        #visualize_point_cloud(point_cloud, title=f"Point Cloud from Device {device}")
+               
+        # 특정 깊이 임계값을 적용하여 포인트 필터링 (depth 필터링)
+        #z_mean = np.mean(point_cloud[2, :])
         point_cloud = point_cloud[:, point_cloud[2, :] < -depth_threshold]
+        #최대 Z값을 기준으로 필터링
+        #if point_cloud.size > 0:
+            # 특정 깊이 임계값을 적용하여 포인트 필터링 (z축 필터링)
+        #   max_z = np.max(point_cloud[2, :])
+        #   point_cloud = point_cloud[:, point_cloud[2, :] < max_z + depth_threshold]
+        
+        # 포인트 클라우드 시각화
+        #visualize_point_cloud(point_cloud, title=f"Point Cloud from Device {device}")
         
         point_cloud_cumulative = np.column_stack((point_cloud_cumulative, point_cloud))
     
@@ -99,7 +115,7 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
     bounding_box_points_color_image = {}
     lengths, widths, heights = [], [], []
     volumes = []
-    
+
     for idx, cluster in enumerate(clusters):
         if isinstance(cluster, np.ndarray) and cluster.shape[1] >= 3:
             coord = cluster[:2, :].T.astype('float32')
@@ -113,14 +129,12 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
             z_values = cluster[2, :]
             max_height = max(z_values) - min(z_values)
             
-            #if max_height < 0.02:  # 높이가 20mm 이하인 클러스터는 노이즈로 간주하여 필터링
-            #    continue
-            
-            heights.append(max_height + depth_threshold)
             lengths.append(length)
             length_mm = length * 1_000
             width_mm = width * 1_000
-            max_height_mm = max_height * 1_000
+            #보정작업 *10추가
+            max_height_mm = max_height * 1_0000  # mm로 변환
+            heights.append(max_height_mm)  # heights 리스트에 추가
             volume_mm3 = length_mm * width_mm * max_height_mm
             volumes.append(volume_mm3)
             height_array = np.array([[-max_height], [-max_height], [-max_height], [-max_height], [0], [0], [0], [0]])
@@ -133,7 +147,7 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
                     bounding_box_color_image_point = rs.rs2_transform_point_to_point(calibration_info[2], bounding_box_point)
                     color_pixel.append(rs.rs2_project_point_to_pixel(calibration_info[1][rs.stream.color], bounding_box_color_image_point))
                 if device not in bounding_box_points_color_image:
-                    bounding_box_points_color_image[device] = []
+                    bounding_box_points_color_image[device] = []  # Initialize list for each device
                 bounding_box_points_color_image[device].append(np.row_stack(color_pixel))
     if lengths and widths and heights:
         total_volume_mm3 = sum(volumes)
@@ -143,12 +157,11 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
             send_data_to_datahub(total_volume_l)
             for idx, volume in enumerate(volumes):
                 print(f"Cluster {idx}")
-                print(f"Length = {lengths[idx] * 1_000:.2f} mm, Width = {widths[idx] * 1_000:.2f} mm, Height = {heights[idx] * 1_000:.2f} mm, Volume = {volume:.2f} cubic millimeters")
+                print(f"Length = {lengths[idx] * 1_000:.2f} mm, Width = {widths[idx] * 1_000:.2f} mm, Height = {heights[idx]:.2f} mm, Volume = {volume:.2f} cubic millimeters")
             last_time_sent = current_time
-        return bounding_box_points_color_image, np.mean(lengths) * 1_000, np.mean(widths) * 1_000, np.mean(heights) * 1_000
+        return bounding_box_points_color_image, np.mean(lengths) * 1_000, np.mean(widths) * 1_000, np.mean(heights)
     else:
         return {}, 0, 0, 0
-
 def visualise_measurements(frames_devices, bounding_box_points_devices, length, width, height):
     for (device_info, frame) in frames_devices.items():
         device = device_info[0]
@@ -159,7 +172,7 @@ def visualise_measurements(frames_devices, bounding_box_points_devices, length, 
                 if (length != 0 and width != 0 and height != 0):
                     bounding_box_points_device_upper = np.array(bounding_box_points_devices[device][idx][0:4])
                     bounding_box_points_device_lower = np.array(bounding_box_points_devices[device][idx][4:8])
-                    box_info = "Length, Width, Height (mm): " + str(int(length * 1000)) + ", " + str(int(width * 1000)) + ", " + str(int(height * 1000))
+                    box_info = "Length, Width, Height (mm): " + str(int(length)) + ", " + str(int(width)) + ", " + str(int(height))
                     bounding_box_points_device_upper = tuple(map(tuple, bounding_box_points_device_upper.astype(int)))
                     for i in range(len(bounding_box_points_device_upper)):
                         cv2.line(color_image, bounding_box_points_device_upper[i], bounding_box_points_device_upper[(i + 1) % 4], (0, 255, 0), 4)

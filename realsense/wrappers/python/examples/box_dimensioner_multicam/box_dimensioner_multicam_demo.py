@@ -12,6 +12,18 @@ from measurement_task import cluster_and_bounding_box, calculate_boundingbox_poi
 from sklearn.cluster import DBSCAN
 from datahub_connector import edgeAgent  # Import the shared edgeAgent
 from wisepaasdatahubedgesdk.Model.Edge import EdgeData, EdgeTag  # Ensure EdgeData and EdgeTag are imported
+import matplotlib.pyplot as plt  # Matplotlib 추가
+def visualize_point_cloud_on_image(image, point_cloud, calibration_info_devices, device):
+    depth_intrinsics = calibration_info_devices[device][1][rs.stream.depth]
+    color_intrinsics = calibration_info_devices[device][1][rs.stream.color]
+    depth_to_color_extrinsics = calibration_info_devices[device][2]
+    
+    for point in point_cloud.T:
+        depth_pixel = rs.rs2_project_point_to_pixel(depth_intrinsics, point)
+        color_pixel = rs.rs2_transform_point_to_point(depth_to_color_extrinsics, point)
+        color_pixel = rs.rs2_project_point_to_pixel(color_intrinsics, color_pixel)
+        
+        cv2.circle(image, (int(color_pixel[0]), int(color_pixel[1])), 1, (0, 0, 255), -1)
 
 def send_image_to_datahub(color_image, edgeAgent):
     # 이미지를 Base64로 인코딩하여 전송
@@ -26,7 +38,21 @@ def send_image_to_datahub(color_image, edgeAgent):
     edgeData.tagList.append(tag)
     edgeAgent.sendData(edgeData)
     print("Color image sent to DataHub from device volume_camera")
-
+def visualize_point_cloud(point_cloud):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(point_cloud[0, :], point_cloud[1, :], point_cloud[2, :], s=1, c=point_cloud[2, :], cmap='viridis')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plt.show()
+def detect_chessboard_corners(image, chessboard_size):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    ret, corners = cv2.findChessboardCorners(gray, chessboard_size, None)
+    if ret:
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+        corners = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
+    return ret, corners
 def visualize_calibration_status(frames, transformation_result_kabsch, intrinsics_devices, chessboard_params):
     for device_info, frame in frames.items():
         device = device_info[0]
@@ -47,8 +73,8 @@ def run_demo():
     # Define some constants
     #1280,720   848,480 해상도가 높으면 더 멀어져야함  해상도가 낮으면 더가까운거 탐지가능
     #640,480   640,360  480 270
-    resolution_width = 848  # pixels
-    resolution_height = 480  # pixels
+    resolution_width = 640  # pixels
+    resolution_height = 360  # pixels
     frame_rate = 30  # fps
 
     dispose_frames_for_stabilisation = 30  # frames
@@ -56,7 +82,7 @@ def run_demo():
     chessboard_width = 6  # squares
     chessboard_height = 9  # squares
     square_size = 0.0253  # meters
-
+    chessboard_size = (chessboard_width, chessboard_height)
     try:
         # Enable the streams from all the intel realsense devices
         rs_config = rs.config()
@@ -84,6 +110,8 @@ def run_demo():
         # Set the chessboard parameters for calibration
         chessboard_params = [chessboard_height, chessboard_width, square_size]
 
+
+
         # Estimate the pose of the chessboard in the world coordinate using the Kabsch Method
         calibrated_device_count = 0
         while calibrated_device_count < len(device_manager._available_devices):
@@ -100,7 +128,9 @@ def run_demo():
                     calibrated_device_count += 1
             
             visualize_calibration_status(frames, transformation_result_kabsch, intrinsics_devices, chessboard_params)
-
+        #
+        #
+        
         # Save the transformation object for all devices in an array to use for measurements
         transformation_devices = {}
         chessboard_points_cumulative_3d = np.array([-1, -1, -1]).transpose()
@@ -151,7 +181,7 @@ def run_demo():
                     #cv2.imshow('Color Image', color_image)
                     #cv2.waitKey(1)  # Add a small delay for the window to update
                     #변경해야함
-                    #send_image_to_datahub(color_image, edgeAgent)
+                    send_image_to_datahub(color_image, edgeAgent)
                 last_time_sent = current_time
 
             # Calculate the pointcloud using the depth frames from all the devices
