@@ -74,7 +74,7 @@ with detection_graph.as_default():
         tf.import_graph_def(od_graph_def, name='')
 
 # 웹캠 준비
-cap = cv2.VideoCapture(2)
+cap = cv2.VideoCapture(1)
 if not cap.isOpened():
     print("Webcam not detected. Exiting...")
     exit()
@@ -122,7 +122,7 @@ with detection_graph.as_default():
                 if recognized_words or matched_words:
                     send_class_to_datahub(detected_objects)
                     send_word_to_datahub(matched_words)
-                    send_image_to_datahub(img_path, edgeAgent)
+                    #send_image_to_datahub(img_path, edgeAgent)
                     last_time_sent = current_time
                      
             vis_util.visualize_boxes_and_labels_on_image_array(
@@ -137,7 +137,8 @@ with detection_graph.as_default():
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-            if current_time - last_time_sent >= 5:
-                print()
+            time_to_wait = 5 - (current_time - last_time_sent)
+            if time_to_wait > 0:
+                time.sleep(time_to_wait)
 cap.release()
 cv2.destroyAllWindows()
