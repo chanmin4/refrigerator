@@ -42,8 +42,8 @@ def send_word_to_datahub(matched_words):
     edgeData.tagList.append(tag)
     edgeAgent.sendData(edgeData)
     # 글자출력
-    for item in matched_words:
-        print(f"Class Name:{item['class_name']}")
+    for word in matched_words:
+        print(f"Recognized Word: {word}")  # 단어를 직접 출력
     print(f"Sent detected objects to DataHub: {items_json}")
 def send_image_to_datahub(color_image, edgeAgent):
     # 이미지를 Base64로 인코딩하여 전송
