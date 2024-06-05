@@ -150,6 +150,7 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
                     bounding_box_points_color_image[device] = []  # Initialize list for each device
                 bounding_box_points_color_image[device].append(np.row_stack(color_pixel))
     if lengths and widths and heights:
+        """
         total_volume_mm3 = sum(volumes)
         total_volume_l = total_volume_mm3 / 1_000_000
         current_time = time.time()
@@ -159,6 +160,7 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
                 print(f"Cluster {idx}")
                 print(f"Length = {lengths[idx] * 1_000:.2f} mm, Width = {widths[idx] * 1_000:.2f} mm, Height = {heights[idx]:.2f} mm, Volume = {volume:.2f} cubic millimeters")
             last_time_sent = current_time
+        """
         return bounding_box_points_color_image, np.mean(lengths) * 1_000, np.mean(widths) * 1_000, np.mean(heights)
     else:
         return {}, 0, 0, 0

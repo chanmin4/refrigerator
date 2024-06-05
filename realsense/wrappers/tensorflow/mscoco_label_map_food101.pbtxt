@@ -1,0 +1,404 @@
+item {
+  id: 1
+  name: 'apple_pie'
+}
+item {
+  id: 2
+  name: 'baby_back_ribs'
+}
+item {
+  id: 3
+  name: 'baklava'
+}
+item {
+  id: 4
+  name: 'beef_carpaccio'
+}
+item {
+  id: 5
+  name: 'beef_tartare'
+}
+item {
+  id: 6
+  name: 'beet_salad'
+}
+item {
+  id: 7
+  name: 'beignets'
+}
+item {
+  id: 8
+  name: 'bibimbap'
+}
+item {
+  id: 9
+  name: 'bread_pudding'
+}
+item {
+  id: 10
+  name: 'breakfast_burrito'
+}
+item {
+  id: 11
+  name: 'bruschetta'
+}
+item {
+  id: 12
+  name: 'caesar_salad'
+}
+item {
+  id: 13
+  name: 'cannoli'
+}
+item {
+  id: 14
+  name: 'caprese_salad'
+}
+item {
+  id: 15
+  name: 'carrot_cake'
+}
+item {
+  id: 16
+  name: 'ceviche'
+}
+item {
+  id: 17
+  name: 'cheesecake'
+}
+item {
+  id: 18
+  name: 'cheese_plate'
+}
+item {
+  id: 19
+  name: 'chicken_curry'
+}
+item {
+  id: 20
+  name: 'chicken_quesadilla'
+}
+item {
+  id: 21
+  name: 'chicken_wings'
+}
+item {
+  id: 22
+  name: 'chocolate_cake'
+}
+item {
+  id: 23
+  name: 'chocolate_mousse'
+}
+item {
+  id: 24
+  name: 'churros'
+}
+item {
+  id: 25
+  name: 'clam_chowder'
+}
+item {
+  id: 26
+  name: 'club_sandwich'
+}
+item {
+  id: 27
+  name: 'crab_cakes'
+}
+item {
+  id: 28
+  name: 'creme_brulee'
+}
+item {
+  id: 29
+  name: 'croque_madame'
+}
+item {
+  id: 30
+  name: 'cup_cakes'
+}
+item {
+  id: 31
+  name: 'deviled_eggs'
+}
+item {
+  id: 32
+  name: 'donuts'
+}
+item {
+  id: 33
+  name: 'dumplings'
+}
+item {
+  id: 34
+  name: 'edamame'
+}
+item {
+  id: 35
+  name: 'eggs_benedict'
+}
+item {
+  id: 36
+  name: 'escargots'
+}
+item {
+  id: 37
+  name: 'falafel'
+}
+item {
+  id: 38
+  name: 'filet_mignon'
+}
+item {
+  id: 39
+  name: 'fish_and_chips'
+}
+item {
+  id: 40
+  name: 'foie_gras'
+}
+item {
+  id: 41
+  name: 'french_fries'
+}
+item {
+  id: 42
+  name: 'french_onion_soup'
+}
+item {
+  id: 43
+  name: 'french_toast'
+}
+item {
+  id: 44
+  name: 'fried_calamari'
+}
+item {
+  id: 45
+  name: 'fried_rice'
+}
+item {
+  id: 46
+  name: 'frozen_yogurt'
+}
+item {
+  id: 47
+  name: 'garlic_bread'
+}
+item {
+  id: 48
+  name: 'gnocchi'
+}
+item {
+  id: 49
+  name: 'greek_salad'
+}
+item {
+  id: 50
+  name: 'grilled_cheese_sandwich'
+}
+item {
+  id: 51
+  name: 'grilled_salmon'
+}
+item {
+  id: 52
+  name: 'guacamole'
+}
+item {
+  id: 53
+  name: 'gyoza'
+}
+item {
+  id: 54
+  name: 'hamburger'
+}
+item {
+  id: 55
+  name: 'hot_and_sour_soup'
+}
+item {
+  id: 56
+  name: 'hot_dog'
+}
+item {
+  id: 57
+  name: 'huevos_rancheros'
+}
+item {
+  id: 58
+  name: 'hummus'
+}
+item {
+  id: 59
+  name: 'ice_cream'
+}
+item {
+  id: 60
+  name: 'lasagna'
+}
+item {
+  id: 61
+  name: 'lobster_bisque'
+}
+item {
+  id: 62
+  name: 'lobster_roll_sandwich'
+}
+item {
+  id: 63
+  name: 'macaroni_and_cheese'
+}
+item {
+  id: 64
+  name: 'macarons'
+}
+item {
+  id: 65
+  name: 'miso_soup'
+}
+item {
+  id: 66
+  name: 'mussels'
+}
+item {
+  id: 67
+  name: 'nachos'
+}
+item {
+  id: 68
+  name: 'omelette'
+}
+item {
+  id: 69
+  name: 'onion_rings'
+}
+item {
+  id: 70
+  name: 'oysters'
+}
+item {
+  id: 71
+  name: 'pad_thai'
+}
+item {
+  id: 72
+  name: 'paella'
+}
+item {
+  id: 73
+  name: 'pancakes'
+}
+item {
+  id: 74
+  name: 'panna_cotta'
+}
+item {
+  id: 75
+  name: 'peking_duck'
+}
+item {
+  id: 76
+  name: 'pho'
+}
+item {
+  id: 77
+  name: 'pizza'
+}
+item {
+  id: 78
+  name: 'pork_chop'
+}
+item {
+  id: 79
+  name: 'poutine'
+}
+item {
+  id: 80
+  name: 'prime_rib'
+}
+item {
+  id: 81
+  name: 'pulled_pork_sandwich'
+}
+item {
+  id: 82
+  name: 'ramen'
+}
+item {
+  id: 83
+  name: 'ravioli'
+}
+item {
+  id: 84
+  name: 'red_velvet_cake'
+}
+item {
+  id: 85
+  name: 'risotto'
+}
+item {
+  id: 86
+  name: 'samosa'
+}
+item {
+  id: 87
+  name: 'sashimi'
+}
+item {
+  id: 88
+  name: 'scallops'
+}
+item {
+  id: 89
+  name: 'seaweed_salad'
+}
+item {
+  id: 90
+  name: 'shrimp_and_grits'
+}
+item {
+  id: 91
+  name: 'spaghetti_bolognese'
+}
+item {
+  id: 92
+  name: 'spaghetti_carbonara'
+}
+item {
+  id: 93
+  name: 'spring_rolls'
+}
+item {
+  id: 94
+  name: 'steak'
+}
+item {
+  id: 95
+  name: 'strawberry_shortcake'
+}
+item {
+  id: 96
+  name: 'sushi'
+}
+item {
+  id: 97
+  name: 'tacos'
+}
+item {
+  id: 98
+  name: 'takoyaki'
+}
+item {
+  id: 99
+  name: 'tiramisu'
+}
+item {
+  id: 100
+  name: 'tuna_tartare'
+}
+item {
+  id: 101
+  name: 'waffles'
+}

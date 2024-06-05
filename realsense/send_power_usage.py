@@ -13,6 +13,7 @@ edgeAgent.connect()
 
 def fetch_power_usage(device_id, access_token):
     #smartthings id
+    #여기 디바이스아이디조정
     url = f"https://api.smartthings.com/v1/devices/8aa1c32f-1cec-48fe-8d4d-7add3a0f96c1/status"
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -40,6 +41,7 @@ def fetch_and_send_power_usage_periodically(device_id, access_token):
         time.sleep(5)  # 1800초는 30분을 의미합니다.
 # Example usage
 #smartthing id&token
+#여기부분수정
 device_id = '8aa1c32f-1cec-48fe-8d4d-7add3a0f96c1'
 access_token = '927f5961-87fe-4cb0-89f4-675520460baf'
 fetch_and_send_power_usage_periodically(device_id, access_token)
