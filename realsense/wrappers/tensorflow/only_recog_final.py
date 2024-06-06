@@ -14,7 +14,7 @@ from scipy.spatial import distance
 
 from wisepaasdatahubedgesdk.EdgeAgent import EdgeAgent
 from wisepaasdatahubedgesdk.Model.Edge import EdgeAgentOptions, DCCSOptions, EdgeData, EdgeTag, constant
-
+import base64
 # EdgeAgent 설정
 edgeAgentOptions = EdgeAgentOptions(nodeId='3607ae3d-5e1e-4171-8706-b6a111fa05ac')
 edgeAgentOptions.connectType = constant.ConnectType['DCCS']
@@ -22,7 +22,19 @@ dccsOptions = DCCSOptions(apiUrl='https://api-dccs-ensaas.sa.wise-paas.com/', cr
 edgeAgentOptions.DCCS = dccsOptions
 edgeAgent = EdgeAgent(edgeAgentOptions)
 edgeAgent.connect()
-
+def send_image_to_datahub(color_image, edgeAgent):
+    # 이미지를 Base64로 인코딩하여 전송
+    _, buffer = cv2.imencode('.jpg', color_image)
+    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
+    
+    # Debug: Print the Base64 data before sending
+    print("Sending Base64 data to DataHub")
+    
+    edgeData = EdgeData()
+    tag = EdgeTag(deviceId='volume_camera', tagName='capture_image', value=jpg_as_text)
+    edgeData.tagList.append(tag)
+    edgeAgent.sendData(edgeData)
+    print("Color image sent to DataHub from device volume_camera")
 def send_data_to_datahub(detected_items):
     edgeData = EdgeData()
     items_json = json.dumps(detected_items)
@@ -136,6 +148,8 @@ def run_detection():
                 if current_time - last_time_sent >= 5:
                     if detected_classes:
                         send_data_to_datahub(detected_classes)
+                        color_image = frame
+                        send_image_to_datahub(color_image, edgeAgent)
                         last_time_sent = current_time
 
                 vis_util.visualize_boxes_and_labels_on_image_array(

@@ -1,13 +1,23 @@
-import tensorflow as tf
-import numpy as np
-model_path = './saved_model'
-detection_model = tf.saved_model.load(model_path)
-print(detection_model.signatures)
-detection_fn = detection_model.signatures['serving_default']
+import requests
+import json
 
-# 테스트 이미지 로드
-input_tensor = tf.convert_to_tensor(np.zeros((1, 640, 480, 3)), dtype=tf.float32)
-detections = detection_fn(input_1=input_tensor)
-
-# 출력 키 확인
-print(detections.keys())
+def fetch_volume_and_text_data():
+    url = "https://api.example.com/get_data"
+    headers = {
+        "Authorization": "Bearer YOUR_ACCESS_TOKEN",
+        "Content-Type": "application/json"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        data = response.json()
+        
+        # 부피 데이터와 글자 데이터를 추출
+        volume_data = [[item['volume'], item['id']] for item in data['volumes']]
+        text_data = [[item['text'], item['id']] for item in data['texts']]
+        
+        return volume_data, text_data
+    else:
+        print("Failed to fetch data:", response.status_code)
+        return [], []
+# 테스트 함수 실행
+fetch_volume_and_text_data()
