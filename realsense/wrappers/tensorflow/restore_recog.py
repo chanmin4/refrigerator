@@ -41,16 +41,8 @@ def send_data_to_datahub(tag_name, data, edgeAgent):
     edgeAgent.sendData(edgeData)
     print(f"Data sent to DataHub: {items_json}")
 
-def send_total_volume_to_datahub(registered_objects, edgeAgent):
-    total_volume = 0.0
-    for obj in registered_objects:
-        # 부피 데이터가 숫자로만 주어진 경우 바로 float 타입으로 변환합니다.
-        try:
-            volume = float(obj['volume'])
-        except ValueError:
-            print(f"Invalid volume format: {obj['volume']}")
-            continue  # 형식이 올바르지 않으면 이 객체는 건너뜁니다.
-        total_volume += volume
+def send_total_volume_to_datahub(total_volume, edgeAgent):
+    
     
     # 데이터허브로 전송
     edgeData = EdgeData()
@@ -58,7 +50,13 @@ def send_total_volume_to_datahub(registered_objects, edgeAgent):
     edgeData.tagList.append(tag)
     edgeAgent.sendData(edgeData)
     print(f"Sent total volume to DataHub: {total_volume} L")
-
+def send_refridge_volume_to_datahub(cal_storage, edgeAgent):  
+    # 데이터허브로 전송
+    edgeData = EdgeData()
+    tag = EdgeTag(deviceId="volume_camera", tagName="cal_storage", value=cal_storage)
+    edgeData.tagList.append(tag)
+    edgeAgent.sendData(edgeData)
+    print(f"Sent total volume to DataHub: {cal_storage} L")
 def capture_frame(cap):
     ret, frame = cap.read()
     if not ret:
@@ -117,59 +115,84 @@ def detect_objects(frame, detection_graph, category_index, score_threshold=0.5):
                 'detection_boxes': np.array(detection_boxes),
                 'detection_scores': np.array(detection_scores)
             }
-def delete_data_from_datahub(data_id):
-    # 데이터 허브에서 데이터 삭제 API 호출
-    url = f"https://api.example.com/delete_data/{data_id}"
-    headers = {
-        "Authorization": "Bearer YOUR_ACCESS_TOKEN",
-        "Content-Type": "application/json"
+def update_data_in_datahub( volume_text_data,exclude_id):
+    access_token = get_access_token()
+    if access_token:
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        updated_data = [item for item in volume_text_data if item[2] != exclude_id]
+        # 데이터 업데이트
+        update_url = f"https://portal-datahub-trainingapps-eks004.sa.wise-paas.com/v1/SimpleJsons/setValue"
+        update_payload = {
+            "nodeId": "3607ae3d-5e1e-4171-8706-b6a111fa05ac",
+            "deviceId": "volume_camera",
+            "tagName": "volume_and_words",
+            "value": json.dumps(updated_data)
     }
-    response = requests.delete(url, headers=headers)
-    if response.status_code == 200:
-        print(f"Data with ID {data_id} deleted successfully.")
+        update_response = requests.put(update_url, headers=headers, json=update_payload)
+        if update_response.status_code == 200:
+            print("Data updated successfully in DataHub.")
+        else:
+            print("Failed to update data in DataHub:", update_response.status_code, update_response.text)
     else:
-        print(f"Failed to delete data: {response.status_code}")
+        print("Access token could not be retrieved.")
 
 def cleanup_resources(cap, sess):
     cap.release()
     cv2.destroyAllWindows()
     sess.close()
+# API에서 액세스 토큰을 가져오는 함수
+def get_access_token():
+    url = "https://api-sso-ensaas.sa.wise-paas.com/v4.0/auth/native"
+    data = {
+        "username": "chanmin4@naver.com", 
+        "password": "Location1957!",      
+        "userDetail": True
+    }
+    try:
+        response = requests.post(url, json=data)
+        response.raise_for_status()  # 요청 실패 시 예외 발생
 
+        # 응답 JSON을 파싱하여 액세스 토큰 가져오기
+        result = response.json()
+        access_token = result.get('accessToken')
+        return access_token
+
+    except requests.exceptions.RequestException as e:
+        print("Failed to get access token:", e)
+        return None
 # 외부측 데이터 가져오기
 def fetch_volume_and_text_data():
-    """테스트용 데이터: 부피와 글자 정보를 조회하는 함수"""
-    
-    volume_text_data = [
-    ['500.5', 'Milk', 'test-id-123'],
-    ['1.6', 'Juice', 'test-id-456'],
-    ['750.3', 'Water', 'test-id-789'],
-    ['250.3', 'Soda', 'test-id-101'],
-    ['2.4', 'Tea', 'test-id-112']
-    ]
-    return volume_text_data
-    
-    """
-    url = "https://api.example.com/get_data"
-    headers = {
-        "Authorization": "Bearer YOUR_ACCESS_TOKEN",
-        "Content-Type": "application/json"
-    }
-
-    # API 호출
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        data = response.json()
-        
-        # 부피 데이터와 글자 데이터를 추출
-        volume_data = [[item['volume'], item['id']] for item in data['volumes']]
-        text_data = [[item['text'], item['id']] for item in data['texts']]
-        
-        return volume_data, text_data
+    access_token = get_access_token()
+    if access_token:
+        url = "https://portal-datahub-trainingapps-eks004.sa.wise-paas.com/api/v1/RealData/raw"
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "Authorization": f"Bearer {access_token}"  # 액세스 토큰 포함
+        }
+        payload = json.dumps([
+            {
+                "nodeId": "3607ae3d-5e1e-4171-8706-b6a111fa05ac",
+                "deviceId": "volume_camera",
+                "tagName": "volume_and_words"
+            }
+        ])
+            
+        response = requests.post(url, headers=headers, data=payload)
+            
+        if response.status_code == 200:
+            data = response.json()
+            print("Data fetched successfully:", data)
+            return data
+        else:
+            print("Failed to fetch data:", response.status_code)
+            return []
     else:
-        print("Failed to fetch data:", response.status_code)
-        return [], []
-"""
-
+        print("Access token could not be retrieved.")
+        return []
 def update_object_status(detected_objects, registered_objects, volume_text_data, category_index):
     current_time = time.time()
     used_ids = {obj.get('external_id') for obj in registered_objects if 'external_id' in obj}  # 사용된 외부 ID 리스트
@@ -213,11 +236,12 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
         if current_time - obj['last_seen'] > 10 and not obj['restore_flag']:  # 10초 이상 업데이트되지 않은 경우
             obj['restore_flag'] = True
         if current_time - obj['last_seen'] > 60 and obj['restore_flag']:
-            delete_data_from_datahub(obj['external_id'])
+            update_data_in_datahub(volume_text_data,obj['external_id'])
             objects_to_remove.append(obj)# 60초 이상 경과한 경우 삭제
-    for obj in objects_to_remove:
-        registered_objects.remove(obj)
-        print(f"Removed object with ID {obj['external_id']} from registered objects.")
+            registered_objects.remove(obj)
+            print(f"Removed object with ID {obj['exteprnal_id']} from registered objects.")
+        
+        
 def run_detection():
     cap = cv2.VideoCapture(1)
     if not cap.isOpened():
@@ -248,8 +272,20 @@ def run_detection():
 
             object_classes = [obj['class_name'] for obj in registered_objects]
             send_data_to_datahub("internal_data", object_classes, edgeAgent)  # 데이터 허브로 상태 업데이트 전송
-            send_total_volume_to_datahub(registered_objects, edgeAgent)  # 전체 부피 데이터 허브로 전송
-        
+            
+            total_volume = 0.0
+            for obj in registered_objects:
+                # 부피 데이터가 숫자로만 주어진 경우 바로 float 타입으로 변환합니다.
+                try:
+                    volume = float(obj['volume'])
+                except ValueError:
+                    print(f"Invalid volume format: {obj['volume']}")
+                    continue  # 형식이 올바르지 않으면 이 객체는 건너뜁니다.
+                total_volume += volume
+            send_total_volume_to_datahub(total_volume, edgeAgent)  # 전체 부피 데이터 허브로 전송
+            cal_storage=total_volume/(24.4)*100
+            
+            send_refridge_volume_to_datahub(cal_storage, edgeAgent)
             vis_util.visualize_boxes_and_labels_on_image_array(
                 frame,
                 detected_objects['detection_boxes'],

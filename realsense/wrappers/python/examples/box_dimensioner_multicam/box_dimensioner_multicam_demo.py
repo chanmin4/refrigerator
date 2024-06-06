@@ -60,19 +60,6 @@ def send_data_to_datahub(volume, words, current_uuid):
     edgeData.tagList.append(tag)
     edgeAgent.sendData(edgeData)
     print(f"Data sent to DataHub: {items_json}")
-
-# 이미지를 Base64로 인코딩하여 전송하는 함수
-def send_image_to_datahub(color_image, edgeAgent):
-    _, buffer = cv2.imencode('.jpg', color_image)
-    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-    
-    print("Sending Base64 data to DataHub")
-    
-    edgeData = EdgeData()
-    tag = EdgeTag(deviceId='volume_camera', tagName='capture_image', value=jpg_as_text)
-    edgeData.tagList.append(tag)
-    edgeAgent.sendData(edgeData)
-    print("Color image sent to DataHub from device volume_camera")
 def generate_unique_id():
     return str(uuid.uuid4())
 
