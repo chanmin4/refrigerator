@@ -1,40 +1,29 @@
-import os
+import cv2
 import sys
 sys.path.append('./mmocr_test')
 from mmocr.apis import MMOCRInferencer
 import re
-import threading
+import pyrealsense2 as rs
+import numpy as np
 import time
 import json
-import cv2
-import numpy as np
-import tensorflow as tf
-import pyrealsense2 as rs
-#from object_detection.utils import label_map_util
-#from object_detection.utils import visualization_utils as vis_util
-from scipy.spatial import distance
-import requests
-import uuid
 import base64
-from datetime import datetime
-import pymysql
+import uuid
 from collections import defaultdict
 from realsense_device_manager import DeviceManager
 from calibration_kabsch import PoseEstimation
 from helper_functions import get_boundary_corners_2D
 from measurement_task import cluster_and_bounding_box, calculate_boundingbox_points, calculate_cumulative_pointcloud, visualise_measurements
 from sklearn.cluster import DBSCAN
+from pymongo import MongoClient
 import matplotlib.pyplot as plt
 
-# MySQL 연결 설정
-mysql_connection = pymysql.connect(
-    host='localhost',
-    user='chanmin4',
-    password='location1957',
-    db='smart_fridge',
-    charset='utf8mb4',
-    cursorclass=pymysql.cursors.DictCursor
-)
+# MongoDB Atlas 클러스터에 연결
+client = MongoClient('mongodb+srv://chanmin404:location1957!@refridge.g1vskrx.mongodb.net/?retryWrites=true&w=majority')
+
+# 데이터베이스 및 컬렉션 설정
+db = client['smart_fridge']
+volume_word_collection = db['Volume_word_Table']
 
 def read_numbers_and_words_from_file(file_path):
     with open(file_path, 'r') as file:
@@ -42,10 +31,10 @@ def read_numbers_and_words_from_file(file_path):
 
     numbers_and_words = []
     for line in lines:
-        line = line.strip()
-        if line.isdigit():
+        line = line.strip()  # 줄 바꿈 문자 제거
+        if line.isdigit():  # 숫자인 경우
             numbers_and_words.append(line)
-        else:
+        else:  # 단어인 경우
             words = line.split()
             numbers_and_words.extend(words)
 
@@ -67,16 +56,19 @@ def visualize_calibration_status(frames, transformation_result_kabsch, intrinsic
         cv2.imshow(f"Calibration - Device {device}", color_image)
         cv2.waitKey(1)
 
-def send_data_to_mysql(volume, words, current_uuid):
-    cursor = mysql_connection.cursor()
-    sql = "INSERT INTO volume_word_table (id, volume, words) VALUES (%s, %s, %s)"
-    cursor.execute(sql, (current_uuid, volume, ','.join(words)))
-    mysql_connection.commit()
-    print(f"Data sent to MySQL: id={current_uuid}, volume={volume}, words={words}")
+def send_data_to_mongodb(volume, words, current_uuid):
+    data_payload = {
+        'volume': volume,
+        'words': words,
+        'id': current_uuid
+    }
+    volume_word_collection.insert_one(data_payload)
+    print(f"Data sent to MongoDB: {data_payload}")
 
 def generate_unique_id():
     return str(uuid.uuid4())
 
+# 웹캠 캡처 및 텍스트 인식 함수
 def capture_and_recognize(saved_words, current_uuid):
     print("Saved Words:", saved_words)
     infer = MMOCRInferencer(det='dbnetpp', rec='svtr-small')
@@ -214,7 +206,7 @@ def run_demo():
     current_uuid = generate_unique_id()
     numbers_and_words = read_numbers_and_words_from_file('00.txt')   
     word_to_sent = capture_and_recognize(numbers_and_words, current_uuid)
-    send_data_to_mysql(final_volume, word_to_sent, current_uuid)  # 글자가 인식되지 않은 경우 None으로 전송
+    send_data_to_mongodb(final_volume, word_to_sent, current_uuid)  # 글자가 인식되지 않은 경우 None으로 전송
     device_manager.disable_streams()
     cv2.destroyAllWindows()
 

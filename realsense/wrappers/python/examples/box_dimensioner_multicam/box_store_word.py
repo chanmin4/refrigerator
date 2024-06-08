@@ -1,40 +1,23 @@
-import os
+import cv2
 import sys
 sys.path.append('./mmocr_test')
 from mmocr.apis import MMOCRInferencer
 import re
-import threading
+import pyrealsense2 as rs
+import numpy as np
 import time
 import json
-import cv2
-import numpy as np
-import tensorflow as tf
-import pyrealsense2 as rs
-#from object_detection.utils import label_map_util
-#from object_detection.utils import visualization_utils as vis_util
-from scipy.spatial import distance
-import requests
-import uuid
 import base64
-from datetime import datetime
-import pymysql
+import uuid
 from collections import defaultdict
 from realsense_device_manager import DeviceManager
 from calibration_kabsch import PoseEstimation
 from helper_functions import get_boundary_corners_2D
 from measurement_task import cluster_and_bounding_box, calculate_boundingbox_points, calculate_cumulative_pointcloud, visualise_measurements
 from sklearn.cluster import DBSCAN
+from datahub_connector import edgeAgent
+from wisepaasdatahubedgesdk.Model.Edge import EdgeData, EdgeTag
 import matplotlib.pyplot as plt
-
-# MySQL 연결 설정
-mysql_connection = pymysql.connect(
-    host='localhost',
-    user='chanmin4',
-    password='location1957',
-    db='smart_fridge',
-    charset='utf8mb4',
-    cursorclass=pymysql.cursors.DictCursor
-)
 
 def read_numbers_and_words_from_file(file_path):
     with open(file_path, 'r') as file:
@@ -42,15 +25,14 @@ def read_numbers_and_words_from_file(file_path):
 
     numbers_and_words = []
     for line in lines:
-        line = line.strip()
-        if line.isdigit():
+        line = line.strip()  # 줄 바꿈 문자 제거
+        if line.isdigit():  # 숫자인 경우
             numbers_and_words.append(line)
-        else:
+        else:  # 단어인 경우
             words = line.split()
             numbers_and_words.extend(words)
 
     return numbers_and_words
-
 def visualize_calibration_status(frames, transformation_result_kabsch, intrinsics_devices, chessboard_params):
     for device_info, frame in frames.items():
         device = device_info[0]
@@ -66,18 +48,23 @@ def visualize_calibration_status(frames, transformation_result_kabsch, intrinsic
         
         cv2.imshow(f"Calibration - Device {device}", color_image)
         cv2.waitKey(1)
-
-def send_data_to_mysql(volume, words, current_uuid):
-    cursor = mysql_connection.cursor()
-    sql = "INSERT INTO volume_word_table (id, volume, words) VALUES (%s, %s, %s)"
-    cursor.execute(sql, (current_uuid, volume, ','.join(words)))
-    mysql_connection.commit()
-    print(f"Data sent to MySQL: id={current_uuid}, volume={volume}, words={words}")
-
+def send_data_to_datahub(volume, words, current_uuid):
+    edgeData = EdgeData()
+    data_payload = {
+        'volume': volume,
+        'words': words,
+        'id': current_uuid
+    }
+    items_json = json.dumps(data_payload)
+    tag = EdgeTag(deviceId="volume_camera", tagName="volume_and_words", value=items_json)
+    edgeData.tagList.append(tag)
+    edgeAgent.sendData(edgeData)
+    print(f"Data sent to DataHub: {items_json}")
 def generate_unique_id():
     return str(uuid.uuid4())
 
-def capture_and_recognize(saved_words, current_uuid):
+# 웹캠 캡처 및 텍스트 인식 함수
+def capture_and_recognize(saved_words,current_uuid):
     print("Saved Words:", saved_words)
     infer = MMOCRInferencer(det='dbnetpp', rec='svtr-small')
     cap = cv2.VideoCapture(0)
@@ -181,10 +168,11 @@ def run_demo():
     for calibration_info in (transformation_devices, intrinsics_devices, extrinsics_devices):
         for key, value in calibration_info.items():
             calibration_info_devices[key].append(value)
-    final_volume = 0
+    final_volume=0
     while True:
         frames_devices = device_manager.poll_frames()
         
+
         point_cloud = calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2D)
         clusters = cluster_and_bounding_box(point_cloud)
         bounding_box_points_color_image, length, width, height = calculate_boundingbox_points(clusters, calibration_info_devices)
@@ -192,17 +180,17 @@ def run_demo():
     
         if len(clusters) == 1:
             volume = float(length) * float(width) * float(height)
-            # height가 보정값으로 *10 되었으니 나누기1000000*10
-            print(length, width, height / 10)
-            volume /= 10000000
+            #height가 보정값으로 *10 되었으니 나누기1000000*10
+            print(length,width,height/10)
+            volume/=10000000
             
             if last_volume is not None:
                 volume_change_ratio = abs(volume - last_volume) / last_volume * 100
                 print(volume_change_ratio)
                 if volume_change_ratio < 20:
                     if current_time - last_time_checked >= 15:
-                        # 이 사이클 횟수동안 돌린 부피를 평균부피로 계산해 정확도 상승기대
-                        final_volume = volume
+                        #이 사이클 횟수동안 돌린 부피를 평균부피로 계산해 정확도 상승기대
+                        final_volume=volume
                         last_time_checked = current_time
                         visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)    
                         break
@@ -210,11 +198,10 @@ def run_demo():
 
             visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)      
         time.sleep(1)
-
-    current_uuid = generate_unique_id()
+    current_uuid=generate_unique_id()
     numbers_and_words = read_numbers_and_words_from_file('00.txt')   
-    word_to_sent = capture_and_recognize(numbers_and_words, current_uuid)
-    send_data_to_mysql(final_volume, word_to_sent, current_uuid)  # 글자가 인식되지 않은 경우 None으로 전송
+    word_to_sent=capture_and_recognize(numbers_and_words,current_uuid)
+    send_data_to_datahub(final_volume, word_to_sent, current_uuid)  # 글자가 인식되지 않은 경우 None으로 전송
     device_manager.disable_streams()
     cv2.destroyAllWindows()
 
