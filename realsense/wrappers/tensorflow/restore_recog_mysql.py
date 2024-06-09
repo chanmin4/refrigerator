@@ -17,10 +17,10 @@ from datetime import datetime
 
 # MySQL 연결 설정
 connection = pymysql.connect(
-    host='localhost',
+    host='smart-fridge.cn8m88cosddm.us-east-1.rds.amazonaws.com',
     user='chanmin4',
     password='location1957',
-    db='smart_fridge',
+    db='smart-fridge',
     charset='utf8mb4',
     cursorclass=pymysql.cursors.DictCursor
 )

@@ -1,0 +1,55 @@
+item {
+  id: 1
+  name: 'Bread'
+  display_name: 'Bread'
+}
+item {
+  id: 2
+  name: 'Dairy product'
+  display_name: 'Dairy product'
+}
+item {
+  id: 3
+  name: 'Dessert'
+  display_name: 'Dessert'
+}
+item {
+  id: 4
+  name: 'Egg'
+  display_name: 'Egg'
+}
+item {
+  id: 5
+  name: 'Fried food'
+  display_name: 'Fried food'
+}
+item {
+  id: 6
+  name: 'Meat'
+  display_name: 'Meat'
+}
+item {
+  id: 7
+  name: 'Noodles/Pasta'
+  display_name: 'Noodles/Pasta'
+}
+item {
+  id: 8
+  name: 'Rice'
+  display_name: 'Rice'
+}
+item {
+  id: 9
+  name: 'Seafood'
+  display_name: 'Seafood'
+}
+item {
+  id: 10
+  name: 'Soup'
+  display_name: 'Soup'
+}
+item {
+  id: 11
+  name: 'Vegetable/Fruit'
+  display_name: 'Vegetable/Fruit'
+}
