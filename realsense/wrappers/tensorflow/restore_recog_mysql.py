@@ -13,7 +13,7 @@ import requests
 import uuid
 import base64
 import pymysql
-from datetime import datetime
+from datetime import datetime,timezone, timedelta
 
 # MySQL 연결 설정
 connection = pymysql.connect(
@@ -117,6 +117,7 @@ def fetch_volume_word_data():
 
 def update_object_status(detected_objects, registered_objects, volume_text_data, category_index):
     current_time = time.time()
+    last_time=current_time
     used_ids = set()
     with connection.cursor() as cursor:
         sql = "SELECT external_id FROM internaldata"
@@ -135,7 +136,7 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
         matched = False
         for obj in registered_objects:
             if obj.get('object_class') == detected['class_name']:
-                obj.update({'last_seen': current_time, 'restore_flag': False})
+                obj.update({'last_seen': last_time, 'restore_flag': False})
                 matched = True
                 break
         if not matched:
@@ -143,14 +144,14 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
                 external_id = data_item['id']
                 if external_id not in used_ids:
                     detected.update({
-                        'last_seen': current_time,
+                        'last_seen': last_time,
                         'restore_flag': False,
                         'store_food': detected['class_name'],
                         'volume': data_item['volume'],
                         'text': data_item['text'],
                         'external_id': external_id
                     })
-                    insert_internal_data(external_id, detected['class_name'], current_time, False, data_item['volume'], data_item['text'])
+                    insert_internal_data(external_id, detected['class_name'], last_time, False, data_item['volume'], data_item['text'])
                     new_objects.append(detected)
                     used_ids.add(external_id)
                     break
@@ -165,9 +166,9 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
         if current_time - last_seen_timestamp > 60 and obj['restore_flag']:
             if 'object_class' in obj:
                 with connection.cursor() as cursor:
-                    sql = "DELETE FROM InternalData WHERE external_id = %s"
+                    sql = "DELETE FROM internaldata WHERE external_id = %s"
                     cursor.execute(sql, (obj['external_id'],))
-                    sql = "DELETE FROM Volume_word_Table WHERE id = %s"
+                    sql = "DELETE FROM volume_word_table WHERE id = %s"
                     cursor.execute(sql, (obj['external_id'],))
                     connection.commit()
                 print(f"Removed object with ID {obj['external_id']} food {obj['object_class']} from registered objects.")
@@ -176,10 +177,12 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
             objects_to_remove.append(obj)
 
 def insert_internal_data(external_id, object_class, last_seen, restore_flag, volume, text):
-    formatted_last_seen = datetime.fromtimestamp(last_seen).strftime('%Y-%m-%d %H:%M:%S')
-    
+    # UTC 시간으로부터 마지막으로 본 시간 (last_seen)을 생성
+    last_seen_utc = datetime.fromtimestamp(last_seen)
+    last_seen_korea = last_seen_utc
+    formatted_last_seen = last_seen_korea.strftime('%Y-%m-%d %H:%M:%S')
     with connection.cursor() as cursor:
-        sql = "INSERT INTO InternalData (external_id, object_class, last_seen, restore_flag, volume, text) VALUES (%s, %s, %s, %s, %s, %s)"
+        sql = "INSERT INTO internaldata (external_id, object_class, last_seen, restore_flag, volume, text) VALUES (%s, %s, %s, %s, %s, %s)"
         cursor.execute(sql, (external_id, object_class, formatted_last_seen, restore_flag, volume, json.dumps(text)))
         connection.commit()
     print("Data inserted with last_seen formatted as:", formatted_last_seen)
@@ -202,7 +205,7 @@ def save_image(frame, timestamp):
     print("Image saved to MySQL.")
 
 def run_detection():
-    cap = cv2.VideoCapture(1)
+    cap = cv2.VideoCapture(2)
     if not cap.isOpened():
         print("Webcam not detected. Exiting...")
         return
@@ -239,7 +242,7 @@ def run_detection():
             total_volume = sum(obj['volume'] for obj in registered_objects if 'volume' in obj)
             print(f"Total volume: {total_volume} L")
             # MySQL에 이미지와 총 부피 저장
-            save_image(frame, current_time_str)
+            save_image(frame, current_time)
             save_total_volume(total_volume, current_time_str)
             vis_util.visualize_boxes_and_labels_on_image_array(
                 frame,

@@ -1,55 +1,144 @@
 item {
   id: 1
-  name: 'Bread'
-  display_name: 'Bread'
+  name: 'apple'
 }
 item {
   id: 2
-  name: 'Dairy product'
-  display_name: 'Dairy product'
+  name: 'pomegranate'
 }
 item {
   id: 3
-  name: 'Dessert'
-  display_name: 'Dessert'
+  name: 'grapes'
 }
 item {
   id: 4
-  name: 'Egg'
-  display_name: 'Egg'
+  name: 'paprika'
 }
 item {
   id: 5
-  name: 'Fried food'
-  display_name: 'Fried food'
+  name: 'soy beans'
 }
 item {
   id: 6
-  name: 'Meat'
-  display_name: 'Meat'
+  name: 'chilli pepper'
 }
 item {
   id: 7
-  name: 'Noodles/Pasta'
-  display_name: 'Noodles/Pasta'
+  name: 'eggplant'
 }
 item {
   id: 8
-  name: 'Rice'
-  display_name: 'Rice'
+  name: 'sweetcorn'
 }
 item {
   id: 9
-  name: 'Seafood'
-  display_name: 'Seafood'
+  name: 'orange'
 }
 item {
   id: 10
-  name: 'Soup'
-  display_name: 'Soup'
+  name: 'cucumber'
 }
 item {
   id: 11
-  name: 'Vegetable/Fruit'
-  display_name: 'Vegetable/Fruit'
+  name: 'lettuce'
+}
+item {
+  id: 12
+  name: 'garlic'
+}
+item {
+  id: 13
+  name: 'onion'
+}
+item {
+  id: 14
+  name: 'bell pepper'
+}
+item {
+  id: 15
+  name: 'carrot'
+}
+item {
+  id: 16
+  name: 'jalepeno'
+}
+item {
+  id: 17
+  name: 'kiwi'
+}
+item {
+  id: 18
+  name: 'raddish'
+}
+item {
+  id: 19
+  name: 'pear'
+}
+item {
+  id: 20
+  name: 'ginger'
+}
+item {
+  id: 21
+  name: 'spinach'
+}
+item {
+  id: 22
+  name: 'beetroot'
+}
+item {
+  id: 23
+  name: 'cauliflower'
+}
+item {
+  id: 24
+  name: 'banana'
+}
+item {
+  id: 25
+  name: 'tomato'
+}
+item {
+  id: 26
+  name: 'corn'
+}
+item {
+  id: 27
+  name: 'sweetpotato'
+}
+item {
+  id: 28
+  name: 'cabbage'
+}
+item {
+  id: 29
+  name: 'lemon'
+}
+item {
+  id: 30
+  name: 'peas'
+}
+item {
+  id: 31
+  name: 'mango'
+}
+item {
+  id: 32
+  name: 'watermelon'
+}
+item {
+  id: 33
+  name: 'potato'
+}
+item {
+  id: 34
+  name: 'capsicum'
+}
+item {
+  id: 35
+  name: 'turnip'
+}
+item {
+  id: 36
+  name: 'pineapple'
 }

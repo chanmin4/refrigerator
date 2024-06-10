@@ -1,32 +1,23 @@
 import time
 import adafruit_dht
 import board
-from wisepaasdatahubedgesdk.EdgeAgent import EdgeAgent
-from wisepaasdatahubedgesdk.Model.Edge import EdgeAgentOptions, DCCSOptions, EdgeData, EdgeTag, constant
-# EdgeAgent 설정
-edgeAgentOptions = EdgeAgentOptions(nodeId='3607ae3d-5e1e-4171-8706-b6a111fa05ac')
-edgeAgentOptions.connectType = constant.ConnectType['DCCS']
-dccsOptions = DCCSOptions(apiUrl='https://api-dccs-ensaas.sa.wise-paas.com/', credentialKey='8d47cc1fab2e0a5207ab7da336ae4atl')
-edgeAgentOptions.DCCS = dccsOptions
-edgeAgent = EdgeAgent(edgeAgentOptions)
-edgeAgent.connect()
-def send_tem_to_datahub(total_volume_l):
-    edgeData = EdgeData()
-    deviceId = 'volume_camera'
-    tagName = 'temperature'
-    tag = EdgeTag(deviceId, tagName, total_volume_l)
-    edgeData.tagList.append(tag)
-    edgeAgent.sendData(edgeData)
-    print(f"Total volume {total_volume_l} L sent to DataHub")
-
-def send_hu_to_datahub(total_volume_l):
-    edgeData = EdgeData()
-    deviceId = 'volume_camera'
-    tagName = 'humidity'
-    tag = EdgeTag(deviceId, tagName, total_volume_l)
-    edgeData.tagList.append(tag)
-    edgeAgent.sendData(edgeData)
-    print(f"Total volume {total_volume_l} L sent to DataHub")
+import pymysql
+import time
+from datetime import datetime,timezone, timedelta
+connection = pymysql.connect(
+    host='smart-fridge.cn8m88cosddm.us-east-1.rds.amazonaws.com',
+    user='chanmin4',
+    password='location1957',
+    db='smart-fridge',
+    charset='utf8mb4',
+    cursorclass=pymysql.cursors.DictCursor
+)
+def save_temp_humid(temp,humid, timestamp):
+    with connection.cursor() as cursor:
+        sql = "INSERT INTO temp_humid (timestamp, humidity,temperature) VALUES (%s, %s,%s)"
+        cursor.execute(sql, (timestamp, humid,temp))
+        connection.commit()
+    print("humid,temp updated to MySQL.")
 
 dht_device=adafruit_dht.DHT22(board.D4)
 while(True):
@@ -34,8 +25,10 @@ while(True):
         temperature = dht_device.temperature
         humidity=dht_device.humidity
         print(f"Temp: {temperature:.1f} C Humidity:{humidity:.1f}%")
-        send_hu_to_datahub(humidity)
-        send_hu_to_datahub(temperature)
+        current_time = time.time()
+        current_time_str = datetime.fromtimestamp(current_time).strftime('%Y-%m-%d %H:%M:%S')
+            
+        save_temp_humid(temperature,humidity,current_time_str)
     except RuntimeError as error:
         print(error.args[0])
         
