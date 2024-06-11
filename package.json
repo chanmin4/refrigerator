@@ -19,6 +19,11 @@
   "homepage": "https://github.com/chanmin4/refrigerator#readme",
   "dependencies": {
     "express": "^4.19.2",
-    "http-proxy-middleware": "^3.0.0"
+    "fluent-ffmpeg": "^2.1.3",
+    "http": "^0.0.1-security",
+    "http-proxy-middleware": "^3.0.0",
+    "kurento-client": "^7.0.0",
+    "socket.io": "^4.7.5",
+    "ws": "^8.17.0"
   }
 }

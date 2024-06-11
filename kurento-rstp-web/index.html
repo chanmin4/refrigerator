@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RTSP Stream</title>
+    <style>
+        canvas {
+            width: 640px;
+            height: 480px;
+        }
+    </style>
+</head>
+<body>
+    <h1>RTSP Stream</h1>
+    <canvas id="videoCanvas"></canvas>
+    <!--경로-->
+    <script src="static/js/jsmpeg.min.js"></script>
+    <script>
+        const url = 'ws://211.112.65.101:8082'; // 외부 IP로 변경
+        const canvas = document.getElementById('videoCanvas');
+        const player = new JSMpeg.Player(url, { canvas: canvas });
+    </script>
+</body>
+</html>
