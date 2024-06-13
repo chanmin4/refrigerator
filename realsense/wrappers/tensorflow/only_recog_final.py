@@ -77,7 +77,7 @@ def is_similar_object(hist1, hist2, threshold=0.7):
     return similarity > threshold
 
 def run_detection():
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(1)
     if not cap.isOpened():
         print("Webcam not detected. Exiting...")
         return

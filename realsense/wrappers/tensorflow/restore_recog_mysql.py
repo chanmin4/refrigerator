@@ -22,6 +22,7 @@ connection = pymysql.connect(
     password='location1957',
     db='smart-fridge',
     charset='utf8mb4',
+    port=3307,
     cursorclass=pymysql.cursors.DictCursor
 )
 
@@ -38,7 +39,7 @@ def load_registered_objects():
                 'last_seen': data['last_seen'].timestamp(),
                 'restore_flag': data['restore_flag'],
                 'volume': data['volume'],
-                'text': json.loads(data['text'])
+                'text': data['text']
             }
             registered_objects.append(obj)
     return registered_objects
@@ -106,13 +107,9 @@ def fetch_volume_word_data():
         cursor.execute(sql)
         result = cursor.fetchall()
         for data in result:
-            try:
-                # 데이터가 JSON 형식인지 확인
-                data['text'] = json.loads(data['words'])
-            except json.JSONDecodeError:
-                # JSON 형식이 아니면 쉼표로 구분된 문자열로 처리
-                data['text'] = data['words'].split(',')
-            volume_text_data.append(data)
+                
+                data['text'] = data['words']             
+                volume_text_data.append(data)
     return volume_text_data
 
 def update_object_status(detected_objects, registered_objects, volume_text_data, category_index):
@@ -141,17 +138,20 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
                 break
         if not matched:
             for data_item in volume_text_data:
-                external_id = data_item['id']
+                external_id = data_item['uuid']
                 if external_id not in used_ids:
+                    current_time = time.time()
+                    timestamp_col = datetime.fromtimestamp(current_time).strftime('%Y-%m-%d %H:%M:%S')                
                     detected.update({
                         'last_seen': last_time,
                         'restore_flag': False,
                         'store_food': detected['class_name'],
                         'volume': data_item['volume'],
                         'text': data_item['text'],
-                        'external_id': external_id
+                        'external_id': external_id,
+                        'timestamp_col':timestamp_col
                     })
-                    insert_internal_data(external_id, detected['class_name'], last_time, False, data_item['volume'], data_item['text'])
+                    insert_internal_data(external_id, detected['class_name'], last_time, False, data_item['volume'], data_item['text'],timestamp_col)
                     new_objects.append(detected)
                     used_ids.add(external_id)
                     break
@@ -162,7 +162,11 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
     for obj in registered_objects[:]:
         last_seen_timestamp = obj['last_seen']
         if current_time - last_seen_timestamp > 10 and not obj['restore_flag']:
-            obj['restore_flag'] = True
+            obj['restore_flag'] = 1
+            with connection.cursor() as cursor:
+                sql = "UPDATE internaldata SET restore_flag = %s WHERE external_id = %s"
+                cursor.execute(sql, (obj['restore_flag'], obj['external_id']))
+                connection.commit()
         if current_time - last_seen_timestamp > 60 and obj['restore_flag']:
             if 'object_class' in obj:
                 with connection.cursor() as cursor:
@@ -176,24 +180,45 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
                 print(f"Warning: 'object_class' key is missing for object with ID {obj['external_id']}.")
             objects_to_remove.append(obj)
 
-def insert_internal_data(external_id, object_class, last_seen, restore_flag, volume, text):
+def insert_internal_data(external_id, object_class, last_seen, restore_flag, volume, text,timestamp_col):
     # UTC 시간으로부터 마지막으로 본 시간 (last_seen)을 생성
     last_seen_utc = datetime.fromtimestamp(last_seen)
     last_seen_korea = last_seen_utc
     formatted_last_seen = last_seen_korea.strftime('%Y-%m-%d %H:%M:%S')
+    # timestamp_col이 문자열이라면 datetime 객체로 변환
+    if isinstance(timestamp_col, str):
+        timestamp_col = datetime.strptime(timestamp_col, '%Y-%m-%d %H:%M:%S')
+
+    # expire_left 값을 계산
+    expire_date_str = str(text)  # text는 yyyymmdd 형식의 날짜를 포함한다고 가정
+    expire_date = datetime.strptime(expire_date_str, '%Y%m%d')
+    days_left = (expire_date - timestamp_col).days
     with connection.cursor() as cursor:
-        sql = "INSERT INTO internaldata (external_id, object_class, last_seen, restore_flag, volume, text) VALUES (%s, %s, %s, %s, %s, %s)"
-        cursor.execute(sql, (external_id, object_class, formatted_last_seen, restore_flag, volume, json.dumps(text)))
+        sql = "INSERT INTO internaldata (external_id, object_class, last_seen, restore_flag, volume, text,timestamp_col,expire_left) VALUES (%s, %s, %s, %s, %s, %s,%s,%s)"
+        cursor.execute(sql, (external_id, object_class, formatted_last_seen, restore_flag, volume, text,timestamp_col, days_left))
         connection.commit()
     print("Data inserted with last_seen formatted as:", formatted_last_seen)
 
+"""
 def save_total_volume(total_volume, timestamp):
     with connection.cursor() as cursor:
         sql = "INSERT INTO total_volume (timestamp, total_volume) VALUES (%s, %s) ON DUPLICATE KEY UPDATE total_volume = VALUES(total_volume)"
         cursor.execute(sql, (timestamp, total_volume))
         connection.commit()
     print("Total volume updated to MySQL.")
-
+    
+"""
+def save_total_volume(total_volume, timestamp):
+    
+    with connection.cursor() as cursor:
+        sql = """
+        UPDATE total_volume
+        SET timestamp = %s, total_volume = %s
+        WHERE id = 1
+        """
+        cursor.execute(sql, (timestamp,total_volume))
+        connection.commit()
+    print("Total volume updated to MySQL.")
 def save_image(frame, timestamp):
     _, buffer = cv2.imencode('.jpg', frame)
     image_bytes = buffer.tobytes()
@@ -205,7 +230,7 @@ def save_image(frame, timestamp):
     print("Image saved to MySQL.")
 
 def run_detection():
-    cap = cv2.VideoCapture(2)
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         print("Webcam not detected. Exiting...")
         return
@@ -220,7 +245,7 @@ def run_detection():
             detected_objects = detect_objects(frame, model, category_index)
             volume_text_data = fetch_volume_word_data()
             update_object_status(detected_objects, registered_objects, volume_text_data, category_index)
-            
+            registered_objects=load_registered_objects()
             print("Currently registered objects:")
             for obj in registered_objects:
                 # 디버그용으로 obj 딕셔너리 출력

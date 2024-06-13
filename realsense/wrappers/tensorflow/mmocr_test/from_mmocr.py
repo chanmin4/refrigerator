@@ -10,7 +10,7 @@ saved_words = ["pepsi", "25", "04", "02", "24", "09", "18"]
 infer = MMOCRInferencer(det='dbnetpp', rec='svtr-small')
 
 # 웹캠 캡처를 위한 VideoCapture 객체 생성
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 # 캡처 주기를 설정 (초)
 capture_interval = 5

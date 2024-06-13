@@ -57,5 +57,21 @@
   "C_Cpp_Runner.useLinkTimeOptimization": false,
   "C_Cpp_Runner.msvcSecureNoWarnings": false,
   "cmake.sourceDirectory": "C:/Users/Jong Min Lee/OneDrive/Desktop/github/refrigerator/realsense/examples/align",
-  "liveServer.settings.multiRootWorkspaceName": "refrigerator"
+  "liveServer.settings.multiRootWorkspaceName": "refrigerator",
+  "sqltools.connections": [
+    {
+      "mysqlOptions": {
+        "authProtocol": "default",
+        "enableSsl": "Disabled"
+      },
+      "previewLimit": 50,
+      "server": "smart-fridge.cn8m88cosddm.us-east-1.rds.amazonaws.com",
+      "port": 3307,
+      "driver": "MySQL",
+      "name": "rds",
+      "database": "smart-fridge",
+      "username": "chanmin4",
+      "password": "location1957"
+    }
+  ]
 }

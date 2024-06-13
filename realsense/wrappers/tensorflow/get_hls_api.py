@@ -1,10 +1,15 @@
 import tensorflow as tf
 
-# 모델 파일 경로
+def load_frozen_graph(pb_file_path):
+    with tf.io.gfile.GFile(pb_file_path, "rb") as f:
+        graph_def = tf.compat.v1.GraphDef()
+        graph_def.ParseFromString(f.read())
+    return graph_def
 
-model_path = 'D:\다운로드\GAY.h5'
+def print_graph_nodes(graph_def):
+    for node in graph_def.node:
+        print(node.name)
 
-# 모델 불러오기
-model = tf.keras.models.load_model(model_path)
-# 모델 요약 출력
-print(model.summary())
+frozen_graph_path = "frozen_inference_graph.pb"
+graph_def = load_frozen_graph(frozen_graph_path)
+print_graph_nodes(graph_def)

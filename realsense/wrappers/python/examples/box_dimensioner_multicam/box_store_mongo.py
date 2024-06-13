@@ -70,7 +70,6 @@ def generate_unique_id():
 
 # 웹캠 캡처 및 텍스트 인식 함수
 def capture_and_recognize(saved_words, current_uuid):
-    print("Saved Words:", saved_words)
     infer = MMOCRInferencer(det='dbnetpp', rec='svtr-small')
     cap = cv2.VideoCapture(0)
     capture_interval = 5
