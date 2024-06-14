@@ -44,7 +44,7 @@ def fetch_power_usage(device_id, access_token):
 def fetch_and_send_power_usage_periodically(device_id, access_token):
     while True:
         fetch_power_usage(device_id, access_token)
-        time.sleep(600)  # 1800초는 30분을 의미합니다.
+        time.sleep(60)  # 1800초는 30분을 의미합니다.
 # Example usage
 #smartthing id&token
 #여기부분수정

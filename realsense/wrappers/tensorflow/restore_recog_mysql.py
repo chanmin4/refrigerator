@@ -14,7 +14,19 @@ import uuid
 import base64
 import pymysql
 from datetime import datetime,timezone, timedelta
-
+ALLOWED_CLASSES = [44,52, 53, 54, 55, 56, 57, 58, 59, 61]
+LABEL_SCORE_THRESHOLDS = {
+    'banana': 0.2,
+    'apple': 0.2,
+    'sandwich': 0.2,
+    'orange': 0.2,
+    'broccoli': 0.2,
+    'carrot': 0.2,
+    'hot dog': 0.2,
+    'pizza': 0.2,
+    'cake': 0.2,
+    'bottle':0.5
+}
 # MySQL 연결 설정
 connection = pymysql.connect(
     host='smart-fridge.cn8m88cosddm.us-east-1.rds.amazonaws.com',
@@ -58,10 +70,10 @@ def load_model_and_labels():
 
     label_map = label_map_util.load_labelmap(label_map_path)
     categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=90, use_display_name=True)
-    category_index = label_map_util.create_category_index(categories)
+    filtered_categories = [cat for cat in categories if cat['id'] in ALLOWED_CLASSES]
+    category_index = label_map_util.create_category_index(filtered_categories)
 
     return detection_graph, category_index
-
 def detect_objects(frame, detection_graph, category_index, score_threshold=0.5):
     with detection_graph.as_default():
         with tf.compat.v1.Session(graph=detection_graph) as sess:
@@ -81,11 +93,32 @@ def detect_objects(frame, detection_graph, category_index, score_threshold=0.5):
             detection_scores = []
             for i in range(num_detections):
                 score = float(np.squeeze(output_dict['detection_scores'])[i])
-                if score > score_threshold:
-                    detection_classes.append(int(np.squeeze(output_dict['detection_classes'])[i]))
+                class_id = int(np.squeeze(output_dict['detection_classes'])[i])
+                #score = float(np.squeeze(output_dict['detection_scores'])[i])
+                #class_id = int(np.squeeze(output_dict['detection_classes'])[i])
+                #if score > score_threshold and class_id in ALLOWED_CLASSES:
+                    #detection_classes.append(class_id)
+                    #detection_boxes.append(np.squeeze(output_dict['detection_boxes'])[i])
+                    #detection_scores.append(score)
+                # ALLOWED_CLASSES에 있는지 확인
+                if class_id not in ALLOWED_CLASSES:
+                    continue
+
+                # category_index에 class_id가 있는지 확인
+                if class_id not in category_index:
+                    continue
+
+                class_name = category_index[class_id]['name']
+                
+                if class_name in LABEL_SCORE_THRESHOLDS:
+                    class_score_threshold = LABEL_SCORE_THRESHOLDS[class_name]
+                else:
+                    class_score_threshold = score_threshold
+
+                if score > class_score_threshold and class_id in ALLOWED_CLASSES:
+                    detection_classes.append(class_id)
                     detection_boxes.append(np.squeeze(output_dict['detection_boxes'])[i])
                     detection_scores.append(score)
-
             return {
                 'num_detections': len(detection_classes),
                 'detection_classes': np.array(detection_classes),
@@ -93,11 +126,13 @@ def detect_objects(frame, detection_graph, category_index, score_threshold=0.5):
                 'detection_scores': np.array(detection_scores)
             }
 
-def capture_frame(cap):
+
+def capture_frame(cap, resize_dim=(300, 300)):
     ret, frame = cap.read()
     if not ret:
         print("Failed to capture frame")
         return None
+    frame = cv2.resize(frame, resize_dim)
     return frame
 
 def fetch_volume_word_data():
@@ -137,24 +172,31 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
                 matched = True
                 break
         if not matched:
-            for data_item in volume_text_data:
-                external_id = data_item['uuid']
-                if external_id not in used_ids:
-                    current_time = time.time()
-                    timestamp_col = datetime.fromtimestamp(current_time).strftime('%Y-%m-%d %H:%M:%S')                
-                    detected.update({
-                        'last_seen': last_time,
-                        'restore_flag': False,
-                        'store_food': detected['class_name'],
-                        'volume': data_item['volume'],
-                        'text': data_item['text'],
-                        'external_id': external_id,
-                        'timestamp_col':timestamp_col
-                    })
-                    insert_internal_data(external_id, detected['class_name'], last_time, False, data_item['volume'], data_item['text'],timestamp_col)
-                    new_objects.append(detected)
-                    used_ids.add(external_id)
+            # 현재 탐지된 음식이 이미 등록된 음식인지 확인
+            is_already_registered = False
+            for obj in registered_objects:
+                if obj.get('object_class') == detected['class_name']:
+                    is_already_registered = True
                     break
+            if not is_already_registered:
+                for data_item in volume_text_data:
+                    external_id = data_item['uuid']
+                    if external_id not in used_ids:
+                        current_time = time.time()
+                        timestamp_col = datetime.fromtimestamp(current_time).strftime('%Y-%m-%d %H:%M:%S')                
+                        detected.update({
+                            'last_seen': last_time,
+                            'restore_flag': False,
+                            'store_food': detected['class_name'],
+                            'volume': data_item['volume'],
+                            'text': data_item['text'],
+                            'external_id': external_id,
+                            'timestamp_col':timestamp_col
+                        })
+                        insert_internal_data(external_id, detected['class_name'], last_time, False, data_item['volume'], data_item['text'],timestamp_col)
+                        new_objects.append(detected)
+                        used_ids.add(external_id)
+                        break
 
     registered_objects.extend(new_objects)
     objects_to_remove = []
@@ -167,12 +209,12 @@ def update_object_status(detected_objects, registered_objects, volume_text_data,
                 sql = "UPDATE internaldata SET restore_flag = %s WHERE external_id = %s"
                 cursor.execute(sql, (obj['restore_flag'], obj['external_id']))
                 connection.commit()
-        if current_time - last_seen_timestamp > 60 and obj['restore_flag']:
+        if current_time - last_seen_timestamp > 120 and obj['restore_flag']:
             if 'object_class' in obj:
                 with connection.cursor() as cursor:
                     sql = "DELETE FROM internaldata WHERE external_id = %s"
                     cursor.execute(sql, (obj['external_id'],))
-                    sql = "DELETE FROM volume_word_table WHERE id = %s"
+                    sql = "DELETE FROM volume_word_table WHERE uuid = %s"
                     cursor.execute(sql, (obj['external_id'],))
                     connection.commit()
                 print(f"Removed object with ID {obj['external_id']} food {obj['object_class']} from registered objects.")
@@ -192,7 +234,11 @@ def insert_internal_data(external_id, object_class, last_seen, restore_flag, vol
     # expire_left 값을 계산
     expire_date_str = str(text)  # text는 yyyymmdd 형식의 날짜를 포함한다고 가정
     expire_date = datetime.strptime(expire_date_str, '%Y%m%d')
+    # expire_date를 해당 날짜의 자정으로 설정
+    expire_date = expire_date.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+
     days_left = (expire_date - timestamp_col).days
+
     with connection.cursor() as cursor:
         sql = "INSERT INTO internaldata (external_id, object_class, last_seen, restore_flag, volume, text,timestamp_col,expire_left) VALUES (%s, %s, %s, %s, %s, %s,%s,%s)"
         cursor.execute(sql, (external_id, object_class, formatted_last_seen, restore_flag, volume, text,timestamp_col, days_left))
@@ -209,16 +255,14 @@ def save_total_volume(total_volume, timestamp):
     
 """
 def save_total_volume(total_volume, timestamp):
-    
     with connection.cursor() as cursor:
         sql = """
-        UPDATE total_volume
-        SET timestamp = %s, total_volume = %s
-        WHERE id = 1
+        INSERT INTO total_volume (timestamp, total_volume)
+        VALUES (%s, %s)
         """
-        cursor.execute(sql, (timestamp,total_volume))
+        cursor.execute(sql, (timestamp, total_volume))
         connection.commit()
-    print("Total volume updated to MySQL.")
+    print("New total_volume inserted to MySQL.")
 def save_image(frame, timestamp):
     _, buffer = cv2.imencode('.jpg', frame)
     image_bytes = buffer.tobytes()
@@ -231,21 +275,29 @@ def save_image(frame, timestamp):
 
 def run_detection():
     cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
     if not cap.isOpened():
         print("Webcam not detected. Exiting...")
         return
+    frame_skip = 5  # 예: 5프레임마다 한 번씩 처리
+    frame_count = 0
     try:
         registered_objects = load_registered_objects()  # MySQL에서 객체 정보를 로드
         model, category_index = load_model_and_labels()
         
         while True:
-            frame = capture_frame(cap)
+            frame_count += 1
+            frame = capture_frame(cap, resize_dim=(300, 300))
             if frame is None:
+                continue
+            if frame_count % frame_skip != 0:
                 continue
             detected_objects = detect_objects(frame, model, category_index)
             volume_text_data = fetch_volume_word_data()
             update_object_status(detected_objects, registered_objects, volume_text_data, category_index)
             registered_objects=load_registered_objects()
+            
             print("Currently registered objects:")
             for obj in registered_objects:
                 # 디버그용으로 obj 딕셔너리 출력
@@ -280,7 +332,7 @@ def run_detection():
             cv2.imshow('Detection Results', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-            time.sleep(1)    
+            time.sleep(15)    
     finally:
         cap.release()
         cv2.destroyAllWindows()

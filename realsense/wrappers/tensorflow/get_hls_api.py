@@ -1,15 +1,13 @@
 import tensorflow as tf
 
-def load_frozen_graph(pb_file_path):
-    with tf.io.gfile.GFile(pb_file_path, "rb") as f:
-        graph_def = tf.compat.v1.GraphDef()
-        graph_def.ParseFromString(f.read())
-    return graph_def
+# Frozen Graph 파일 경로
+frozen_graph_path = 'frozen_inference_graph.pb'
 
-def print_graph_nodes(graph_def):
-    for node in graph_def.node:
-        print(node.name)
+# 그래프 로드
+with tf.io.gfile.GFile(frozen_graph_path, 'rb') as f:
+    graph_def = tf.compat.v1.GraphDef()
+    graph_def.ParseFromString(f.read())
 
-frozen_graph_path = "frozen_inference_graph.pb"
-graph_def = load_frozen_graph(frozen_graph_path)
-print_graph_nodes(graph_def)
+# 노드 이름 출력
+for node in graph_def.node:
+    print(node.name)
