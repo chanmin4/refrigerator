@@ -53,7 +53,7 @@ def periodic_task():
             timestamp_col = datetime.fromtimestamp(current_time).strftime('%Y-%m-%d %H:%M:%S')                
                    
             save_total_volume(total_volume, timestamp_col)
-        time.sleep(60)
+        time.sleep(10)
 
 if __name__ == "__main__":
     thread = threading.Thread(target=periodic_task)
