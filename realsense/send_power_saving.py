@@ -48,7 +48,8 @@ def fetch_and_send_power_usage_periodically(device_id, access_token):
         time.sleep(60)
 
 def calculate_cost_saving(power, total_volume):
-    storage_percentage = (total_volume / 146.0) * 100
+    #write L of refrigerator
+    storage_percentage = (total_volume / 6) * 100
 
     # Wh 단위를 kWh 단위로 변환
     power_kwh = power / 1000.0
