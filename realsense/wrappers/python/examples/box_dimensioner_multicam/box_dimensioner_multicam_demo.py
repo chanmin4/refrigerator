@@ -133,13 +133,14 @@ def insert_internal_data(external_id, object_class, last_seen, restore_flag, vol
 
 def capture_and_recognize(volume, current_uuid):
     infer = MMOCRInferencer(det='dbnetpp', rec='svtr-small')
-    cap = cv2.VideoCapture(0)
-    capture_interval = 4
+    cap = cv2.VideoCapture(2)
+    capture_interval = 8
     start_time = time.time()
 
     while True:
         current_time = time.time()
         ret, frame = cap.read()
+        cv2.waitKey(1)
 
         if not ret:
             break
@@ -150,7 +151,11 @@ def capture_and_recognize(volume, current_uuid):
         h = 450
         cropped_img = gray[y:y+h, x:x+w]
         preprocessed_frame = preprocess_image(cropped_img)
+        cv2.imshow('Webcam', preprocessed_frame)
+        cv2.waitKey(1)
+
         if current_time - start_time >= capture_interval:
+            start_time = current_time
             img_path = 'current_frame.png'
             cv2.imwrite(img_path, frame)
             result = infer(img_path)
@@ -158,23 +163,24 @@ def capture_and_recognize(volume, current_uuid):
             recognized_words = [re.sub(r'<[^>]*>', '', word) for word in words_list]
             expiration_dates = extract_expiration_date(' '.join(recognized_words))
             print("Recognized Words:", recognized_words)
-            
+
             word_to_sent = recognized_words
             detected_item = None
-            
-            # Oreo 또는 Ritz가 인식된 경우
+
             for word in recognized_words:
                 if word.lower() in ['oreo', 'ritz'] and not re.match(r'\b\d{8}\b', word):
                     print(f"Detected: {word}")
                     detected_item = word.lower()
                     break
-            
+
             if detected_item:
-                # Oreo 또는 Ritz가 인식되면 유통기한을 추가로 탐지
+                cap.release()
+                cap = cv2.VideoCapture(2)
                 start_time = time.time()
                 while True:
                     current_time = time.time()
                     ret, frame = cap.read()
+                    cv2.waitKey(1)
 
                     if not ret:
                         break
@@ -185,7 +191,11 @@ def capture_and_recognize(volume, current_uuid):
                     h = 450
                     cropped_img = gray[y:y+h, x:x+w]
                     preprocessed_frame = preprocess_image(cropped_img)
+                    cv2.imshow('Webcam2', preprocessed_frame)
+                    cv2.waitKey(1)
+
                     if current_time - start_time >= capture_interval:
+                        start_time = current_time
                         img_path = 'current_frame.png'
                         cv2.imwrite(img_path, frame)
                         result = infer(img_path)
@@ -195,32 +205,26 @@ def capture_and_recognize(volume, current_uuid):
                         print("Recognized Words (Second Detection):", recognized_words)
 
                         if expiration_dates:
-                            word_to_sent = expiration_dates[0] # 이름과 유통기한 설정
+                            word_to_sent = expiration_dates[0]
                         else:
                             expiration_dates = None
                         timestamp_col = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-                        
                         if expiration_dates:
-                            
                             print("Expiration Dates:", expiration_dates)
-                            insert_internal_data(current_uuid, detected_item, current_time, 0, volume,word_to_sent , timestamp_col)
+                            insert_internal_data(current_uuid, detected_item, current_time, 0, volume, word_to_sent, timestamp_col)
                             total_volume = calculate_total_volume()
                             current_datetime = datetime.fromtimestamp(current_time)
                             timestamp_col = current_datetime.strftime('%Y-%m-%d %H:%M:%S')
-                            save_total_volume(total_volume+volume,timestamp_col)
+                            save_total_volume(total_volume + volume, timestamp_col)
+                            cap.release()
                             return word_to_sent
-                        
                         start_time = time.time()
             else:
-                # 유통기한이 인식된 경우 탐지 종료x
                 if expiration_dates:
-                    word_to_sent = expiration_dates
+                    word_to_sent = expiration_dates[0]
+                    cap.release()
                     return word_to_sent
-           
-            
-        cv2.imshow('Webcam', preprocessed_frame)
-        cv2.waitKey(1)
 
     cap.release()
     cv2.destroyAllWindows()
@@ -228,6 +232,7 @@ def capture_and_recognize(volume, current_uuid):
 
 
 def run_demo():
+    window_count=0
     current_uuid = None
     resolution_width = 640
     resolution_height = 360
@@ -295,16 +300,19 @@ def run_demo():
     running = False  # 초기 상태에서는 비활성화
     #cap = cv2.VideoCapture(0)  
     while True:
+        
         black_image = np.zeros((240, 320, 3), dtype=np.uint8)
         black_image.fill(0)  # Fill the image with black color
 
         # Create a window named "Black Window"
         window_name = "Black Window"
         cv2.namedWindow(window_name)
-        
+        cv2.imshow(window_name, black_image)  # 창에 블랙 이미지 표시
+
 # Display the black image in the window
         # 사용자 입력 확인
         key = cv2.pollKey()
+        
         if key != -1:
             # 's' 키 입력 시 시작
             if key == start_key:
@@ -322,10 +330,18 @@ def run_demo():
         
         time.sleep(1)
         if running:
+            window_count += 1  # 창 번호 증가
+            window_name = f'RealSense Device {window_count}'
+            cv2.namedWindow(window_name)  # 새로운 창 생성
             while running:
-                cv2.waitKey(1)
+
                 frames_devices = device_manager.poll_frames()
                 
+                # 각 장치의 프레임을 저장
+                for device, frame in frames_devices.items():
+                    color_image = np.asanyarray(frame[rs.stream.color].get_data())
+                    cv2.imshow(window_name, color_image)
+                    cv2.waitKey(1)  # 창 갱신
                 point_cloud = calculate_cumulative_pointcloud(frames_devices, calibration_info_devices, roi_2D)
                 clusters = cluster_and_bounding_box(point_cloud)
                 bounding_box_points_color_image, length, width, height = calculate_boundingbox_points(clusters, calibration_info_devices)
@@ -359,17 +375,22 @@ def run_demo():
                         print(f"최근5번 측정 부피 평균의 변화량:{volume_change_ratio}%")
                         # 최근 부피 변화율이 20% 미만이면 다음 로직 수행
                         if volume_change_ratio < 20:
-                                # 이 사이클 횟수동안 돌린 부피를 평균부피로 계산해 정확도 상승기대
-                                last_volume = volume
-                                last_time_checked = current_time
-                                visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)    
-                                break
+                            # 이 사이클 횟수동안 돌린 부피를 평균부피로 계산해 정확도 상승기대
+                            last_volume = volume
+                            last_time_checked = current_time
+                            processed_images = visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)
+                            for device, img in processed_images.items():
+                                cv2.imshow(window_name, img)
+                                cv2.waitKey(1)  # 창 갱신
+                            break 
                     last_volume = volume
 
                     
-                    visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)      
-                
-                time.sleep(2)
+                    processed_images = visualise_measurements(frames_devices, bounding_box_points_color_image, length, width, height)
+                    for device, img in processed_images.items():
+                        cv2.imshow(window_name, img)
+                        cv2.waitKey(1)  # 창 갱신
+                time.sleep(3)
             #ret, frame = cap.read()
             current_uuid = generate_unique_id()
             #numbers_and_words = read_numbers_and_words_from_file('00.txt')  
@@ -379,7 +400,7 @@ def run_demo():
             running=False
             #device_manager.disable_streams()
             recent_volumes = []
-    #cap.release()
-    cv2.destroyAllWindows()
+            cv2.destroyAllWindows()    
+            #cap.release()
 if __name__ == "__main__":
     run_demo()

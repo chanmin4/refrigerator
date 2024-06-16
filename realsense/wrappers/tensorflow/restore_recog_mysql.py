@@ -16,16 +16,16 @@ import pymysql
 from datetime import datetime,timezone, timedelta
 ALLOWED_CLASSES = [44,52, 53, 54, 55, 56, 57, 58, 59, 61]
 LABEL_SCORE_THRESHOLDS = {
-    'banana': 0.2,
+    'banana': 0.3,
     'apple': 0.2,
-    'sandwich': 0.2,
-    'orange': 0.2,
-    'broccoli': 0.2,
-    'carrot': 0.2,
-    'hot dog': 0.2,
-    'pizza': 0.2,
-    'cake': 0.2,
-    'bottle':0.5
+    'sandwich': 0.3,
+    'orange': 0.5,
+    'broccoli': 0.3,
+    'carrot': 0.3,
+    'hot dog': 0.3,
+    'pizza': 0.3,
+    'cake': 0.1,
+    'bottle':0.2
 }
 # MySQL 연결 설정
 connection = pymysql.connect(
@@ -127,13 +127,20 @@ def detect_objects(frame, detection_graph, category_index, score_threshold=0.5):
             }
 
 
-def capture_frame(cap, resize_dim=(300, 300)):
-    ret, frame = cap.read()
-    if not ret:
-        print("Failed to capture frame")
-        return None
-    frame = cv2.resize(frame, resize_dim)
-    return frame
+def capture_frame(cap, resize_dim=(350,350), retries=5):
+    for attempt in range(retries):
+        try:
+            ret, frame = cap.read()
+            if not ret:
+                print(f"Failed to capture frame on attempt {attempt + 1}")
+                time.sleep(1)  # 잠시 대기 후 재시도
+                continue
+            frame = cv2.resize(frame, resize_dim)
+            return frame
+        except Exception as e:
+            print(f"Error capturing frame on attempt {attempt + 1}: {e}")
+            time.sleep(1)  # 잠시 대기 후 재시도
+    return None
 
 def fetch_volume_word_data():
     volume_text_data = []
@@ -238,6 +245,11 @@ def insert_internal_data(external_id, object_class, last_seen, restore_flag, vol
     expire_date = expire_date.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
 
     days_left = (expire_date - timestamp_col).days
+    if object_class == 'banana':
+        days_left=1
+    if object_class == 'apple':
+        days_left=-1
+            
 
     with connection.cursor() as cursor:
         sql = "INSERT INTO internaldata (external_id, object_class, last_seen, restore_flag, volume, text,timestamp_col,expire_left) VALUES (%s, %s, %s, %s, %s, %s,%s,%s)"
@@ -274,36 +286,37 @@ def save_image(frame, timestamp):
     print("Image saved to MySQL.")
 
 def run_detection():
-    cap = cv2.VideoCapture(0)
+    # DirectShow 백엔드를 사용하여 카메라 장치 열기
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
     if not cap.isOpened():
         print("Webcam not detected. Exiting...")
         return
+
     frame_skip = 5  # 예: 5프레임마다 한 번씩 처리
     frame_count = 0
     try:
         registered_objects = load_registered_objects()  # MySQL에서 객체 정보를 로드
         model, category_index = load_model_and_labels()
-        
+
         while True:
             frame_count += 1
-            frame = capture_frame(cap, resize_dim=(300, 300))
+            frame = capture_frame(cap, resize_dim=(350,350))
             if frame is None:
+                print("Skipping frame due to capture failure.")
                 continue
             if frame_count % frame_skip != 0:
                 continue
+
             detected_objects = detect_objects(frame, model, category_index)
             volume_text_data = fetch_volume_word_data()
             update_object_status(detected_objects, registered_objects, volume_text_data, category_index)
-            registered_objects=load_registered_objects()
-            
+            registered_objects = load_registered_objects()
+
             print("Currently registered objects:")
             for obj in registered_objects:
-                # 디버그용으로 obj 딕셔너리 출력
                 print(f"Object: {obj}")
-
-                # 'object_class'가 객체에 있는지 체크하고, 없는 경우를 처리
                 if 'object_class' in obj:
                     last_seen_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(obj['last_seen']))
                     print(f"외부 ID: {obj.get('external_id', 'N/A')}, 클래스 이름: {obj['object_class']}, 마지막으로 본 시간: {last_seen_time}, 복구 플래그: {obj['restore_flag']}")
@@ -318,7 +331,6 @@ def run_detection():
             current_time_str = datetime.fromtimestamp(current_time).strftime('%Y-%m-%d %H:%M:%S')
             total_volume = sum(obj['volume'] for obj in registered_objects if 'volume' in obj)
             print(f"Total volume: {total_volume} L")
-            # MySQL에 이미지와 총 부피 저장
             save_image(frame, current_time)
             save_total_volume(total_volume, current_time_str)
             vis_util.visualize_boxes_and_labels_on_image_array(
@@ -332,11 +344,12 @@ def run_detection():
             cv2.imshow('Detection Results', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-            time.sleep(15)    
+            time.sleep(5)
+    except Exception as e:
+        print(f"Error during detection loop: {e}")
     finally:
         cap.release()
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    # run_detection 함수 실행
     run_detection()

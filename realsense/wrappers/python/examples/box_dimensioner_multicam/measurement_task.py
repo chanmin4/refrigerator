@@ -165,9 +165,11 @@ def calculate_boundingbox_points(clusters, calibration_info_devices, depth_thres
     else:
         return {}, 0, 0, 0
 def visualise_measurements(frames_devices, bounding_box_points_devices, length, width, height):
+    processed_images = {}
     for (device_info, frame) in frames_devices.items():
+        
         device = device_info[0]
-        color_image = np.asarray(frame[rs.stream.color].get_data())
+        color_image = np.asarray(frame[rs.stream.color].get_data()).copy()  # 프레임 복사
         if device in bounding_box_points_devices:
             bounding_boxes = bounding_box_points_devices[device]
             for idx, bounding_box_points in enumerate(bounding_boxes):
@@ -187,6 +189,6 @@ def visualise_measurements(frames_devices, bounding_box_points_devices, length, 
                     cv2.line(color_image, bounding_box_points_device_upper[2], bounding_box_points_device_lower[2], (0, 255, 0), 1)
                     cv2.line(color_image, bounding_box_points_device_upper[3], bounding_box_points_device_lower[3], (0, 255, 0), 1)
                     cv2.putText(color_image, box_info, (50, 50), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0))
-
-        cv2.imshow('Color image from RealSense Device Nr: ' + device, color_image)
-        cv2.waitKey(1)
+        processed_images[device] = color_image  # 가공된 이미지를 저장
+    
+    return processed_images
